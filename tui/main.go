@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
-
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/ui"
 
@@ -17,11 +17,34 @@ type Model struct {
 
 // Init Method
 func (m Model) Init() bubbletea.Cmd {
+	f, err := os.OpenFile("debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.SetOutput(f)
 	return nil
 }
 
 // Update Method
 func (m Model) Update(msg bubbletea.Msg) (tea.Model, bubbletea.Cmd) {
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		log.Println(msg.String())
+
+		redirect := m.Screen.OnPressKey(msg.String())
+
+		if redirect == 1 {
+			// TODO: Enter Chat Screen
+
+		}
+
+		switch msg.String() {
+		case "q":
+			return m, tea.Quit
+		}
+	}
+
 	return m, nil
 }
 
@@ -36,7 +59,7 @@ func main() {
 	}
 
 	initScreen := ui.RoomListScreen{
-		State: initState,
+		State: &initState,
 	}
 
 	initModel := Model{

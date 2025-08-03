@@ -15,7 +15,7 @@ type AppState any
 
 type RoomListState struct {
 	Rooms        []string
-	SelectedRoom string
+	SelectedRoom int
 }
 
 type ChatState struct {
@@ -25,4 +25,5 @@ type ChatState struct {
 
 type AppScreen interface {
 	Render() string
+	OnPressKey(key string) int
 }

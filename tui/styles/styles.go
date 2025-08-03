@@ -2,31 +2,47 @@ package styles
 
 import "github.com/charmbracelet/lipgloss"
 
-var titleStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("205")).
+// Colors
+var (
+	PrimaryColor    = lipgloss.Color("205")
+	SecondaryColor  = lipgloss.Color("24")
+	HighlightColor  = lipgloss.Color("11")
+	BackgroundColor = lipgloss.Color("235")
+)
+
+// Title style with centered text and improved appearance
+var TitleStyle = lipgloss.NewStyle().
+	Foreground(PrimaryColor).
 	Bold(true).
-	Padding(1, 2)
-
-var sidebarStyle = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder()).
-	Width(20).
-	Padding(1, 1).
-	Margin(0, 1)
-
-var mainStyle = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
 	Padding(1, 2).
-	Width(50)
+	Align(lipgloss.Center)
 
-var menuItemStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("241"))
+// Menu item styles
+var MenuItemStyle = lipgloss.NewStyle().
+	Foreground(SecondaryColor).
+	Padding(0, 1)
 
-var selectedMenuItemStyle = lipgloss.NewStyle().
+// Sidebar with improved border and styling
+var SidebarStyle = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder(), true).
+	BorderForeground(SecondaryColor).
+	Width(25).
+	Padding(1, 1).
+	Margin(0, 1).
+	Align(lipgloss.Center)
+
+// Main content area with rounded borders and better styling
+var MainStyle = lipgloss.NewStyle().
+	Padding(1, 2).
+	Align(lipgloss.Center)
+
+var SelectedMenuItemStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("229")).
 	Background(lipgloss.Color("57")).
+	Padding(0, 1).
 	Bold(true)
 
-var footerStyle = lipgloss.NewStyle().
+var FooterStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("241")).
 	Italic(true).
 	MarginTop(1).
