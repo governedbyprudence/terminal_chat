@@ -5,6 +5,7 @@ import (
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/styles"
 
+	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 )
 
@@ -32,7 +33,7 @@ func (s RoomListScreen) Render() string {
 	return lipgloss.JoinVertical(lipgloss.Top, title, body, footer)
 }
 
-func (s RoomListScreen) OnPressKey(key string) int {
+func (s RoomListScreen) OnPressKey(key string) (int, tea.Cmd) {
 
 	switch key {
 	case "down":
@@ -44,8 +45,8 @@ func (s RoomListScreen) OnPressKey(key string) int {
 			s.State.SelectedRoom--
 		}
 	case "enter":
-		return 1 // Redirect to chat screen
+		return 1, nil // Redirect to chat screen
 	}
 
-	return 0 // No redirect
+	return 0, nil // No redirect
 }

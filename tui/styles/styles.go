@@ -1,6 +1,9 @@
 package styles
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Colors
 var (
@@ -47,3 +50,28 @@ var FooterStyle = lipgloss.NewStyle().
 	Italic(true).
 	MarginTop(1).
 	Padding(0, 2)
+
+var TextInputStyle = lipgloss.NewStyle().
+	Foreground(PrimaryColor).
+	Padding(0, 1)
+
+// Chat Styles
+var MessageStyle = lipgloss.NewStyle().
+	Foreground(SecondaryColor).
+	Padding(0, 1)
+
+var MessageYouStyle = lipgloss.NewStyle().
+	Foreground(PrimaryColor).
+	Padding(0, 1)
+
+func NewTextInput(isPassword bool) textinput.Model {
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.Focus()
+	ti.TextStyle = TextInputStyle
+	if isPassword {
+		ti.EchoMode = textinput.EchoPassword
+	}
+
+	return ti
+}
