@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+
 	"terminal_chat/tui/messageStore"
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/styles"
@@ -14,10 +15,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/ssh"
+	"github.com/charmbracelet/wish"
+	wishtea "github.com/charmbracelet/wish/bubbletea"
 	"github.com/redis/go-redis/v9"
 )
-
-var ctx = context.Background()
 
 type StoreMessage struct {
 	RoomName string `json:"room_name"`
@@ -143,7 +145,8 @@ func (m Model) View() string {
 	return m.Screen.Render()
 }
 
-func main() {
+// newModel creates a new chat model
+func newModel() Model {
 	initState := states.RoomListState{
 		Rooms: []string{"Room 1", "Room 2", "Room 3"},
 	}
@@ -152,7 +155,7 @@ func main() {
 		State: &initState,
 	}
 
-	initModel := Model{
+	return Model{
 		Screen: initScreen,
 		Screens: map[string]states.AppScreen{
 			"roomlist": initScreen,
@@ -164,6 +167,10 @@ func main() {
 		},
 		Redis: messageStore.GetClient(),
 	}
+}
+
+func runLocal() {
+	initModel := newModel()
 
 	p := tea.NewProgram(initModel, tea.WithAltScreen())
 
@@ -173,4 +180,44 @@ func main() {
 		fmt.Printf("There's been an error: %v", err)
 		os.Exit(1)
 	}
+}
+
+func runServer() {
+
+	// Ensure host key exists (generate once if needed):
+	//   ssh-keygen -t ed25519 -f .ssh/id_ed25519 -N ""
+	s, err := wish.NewServer(
+		wish.WithAddress(":2222"),
+		wish.WithHostKeyPath(".ssh/id_ed25519"),
+		wish.WithMiddleware(
+			// One Bubble Tea program per SSH session
+			wishtea.Middleware(func(sess ssh.Session) (tea.Model, []tea.ProgramOption) {
+				m := newModel()
+
+				program := tea.NewProgram(m, tea.WithAltScreen())
+				m.program = program
+
+				return m, []tea.ProgramOption{}
+			}),
+		),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Starting SSH server on :2222")
+	if err := s.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+func main() {
+
+	// Run Locally
+	runLocal()
+
+	// Run Server
+	//runServer()
+
 }
