@@ -36,6 +36,7 @@ func (p *UserPanel) RenderContent(contentWidth int) string {
 	var b strings.Builder
 	b.WriteString(userPanelTitle.Width(contentWidth).Render("ONLINE"))
 	b.WriteString("\n")
+	b.WriteString("\n")
 	if p.UserList.Count() == 0 {
 		b.WriteString("nobody here")
 		b.WriteString("\n")
