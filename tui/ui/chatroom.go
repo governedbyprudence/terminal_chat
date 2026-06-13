@@ -136,7 +136,7 @@ func (s *ChatRoomScreen) Render(width, height int) string {
 	ml := s.activeMessageList()
 	var messages string
 	if ml != nil {
-		messages = ml.Render(leftW, msgHeight)
+		messages = ml.Render(leftW-2, msgHeight)
 	}
 
 	input := s.InputBar.Render(leftW)
@@ -145,7 +145,28 @@ func (s *ChatRoomScreen) Render(width, height int) string {
 	leftBody := messages + "\n" + input + "\n" + footer
 	leftPadded := lipgloss.NewStyle().Width(leftW).Render(leftBody)
 
-	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, s.UserPanel.RenderFull(belowSepH))
+	var trackCol strings.Builder
+	if ml != nil {
+		trackLines := ml.ScrollTrack(msgHeight)
+		for i, tl := range trackLines {
+			if i > 0 {
+				trackCol.WriteString("\n")
+			}
+			trackCol.WriteString(tl)
+		}
+		for i := msgHeight; i < belowSepH; i++ {
+			trackCol.WriteString("\n  ")
+		}
+	} else {
+		for i := 0; i < belowSepH; i++ {
+			if i > 0 {
+				trackCol.WriteString("\n")
+			}
+			trackCol.WriteString("  ")
+		}
+	}
+
+	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, trackCol.String(), s.UserPanel.RenderFull(belowSepH))
 
 	combSplit := strings.Split(combined, "\n")
 	if len(combSplit) > belowSepH {

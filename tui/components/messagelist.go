@@ -66,6 +66,33 @@ func fitWidth(s string, width int) string {
 	return b.String()
 }
 
+func (m *MessageList) ScrollTrack(maxHeight int) []string {
+	track := make([]string, maxHeight)
+	for i := range track {
+		track[i] = "░░"
+	}
+
+	linesPerMsg := 2
+	maxMsgs := maxHeight / linesPerMsg
+	if maxMsgs <= 0 {
+		maxMsgs = 1
+	}
+	maxOffset := max(0, len(m.Messages)-maxMsgs)
+	if maxOffset <= 0 {
+		return track
+	}
+
+	thumbPos := maxHeight - 1 - int(float64(m.scrollOffset)/float64(maxOffset)*float64(maxHeight-1))
+	if thumbPos < 0 {
+		thumbPos = 0
+	}
+	if thumbPos >= maxHeight {
+		thumbPos = maxHeight - 1
+	}
+	track[thumbPos] = "██"
+	return track
+}
+
 func (m *MessageList) Render(width, maxHeight int) string {
 	if len(m.Messages) == 0 {
 		m.scrollOffset = 0
