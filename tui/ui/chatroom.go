@@ -64,7 +64,10 @@ func (s ChatRoomScreen) Render(width, height int) string {
 
 	body := title + "\n" + messages + "\n" + input + "\n" + footer
 
-	return styles.OuterFrame.Render(body)
+	wrapper := lipgloss.NewStyle().Width(contentW)
+	wrapped := wrapper.Render(body)
+
+	return styles.OuterFrame.Render(wrapped) + "\n"
 }
 
 func (s ChatRoomScreen) OnPressKey(key string) (int, tea.Cmd) {
