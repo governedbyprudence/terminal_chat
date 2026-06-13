@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"log"
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/styles"
 
@@ -14,8 +13,6 @@ type RoomListScreen struct {
 }
 
 func (s RoomListScreen) Render() string {
-	log.Println(s.State.SelectedRoom)
-
 	title := styles.TitleStyle.Render("Room List")
 
 	body := ""

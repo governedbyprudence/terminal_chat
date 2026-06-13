@@ -3,27 +3,24 @@ package utils
 import (
 	"crypto/rand"
 	"fmt"
+	"sync"
 	"time"
 )
 
-var currentUserID string
+var (
+	userID string
+	once   sync.Once
+)
 
-// CurrentUserID returns the current user's ID
 func CurrentUserID() string {
-	return currentUserID
-}
-
-func init() {
-	// Generate a random user ID when the package is initialized
-	currentUserID = generateRandomID()
-}
-
-func generateRandomID() string {
-	b := make([]byte, 8)
-	_, err := rand.Read(b)
-	if err != nil {
-		// Fallback to timestamp if random generation fails
-		return fmt.Sprintf("user_%d", time.Now().UnixNano())
-	}
-	return fmt.Sprintf("user_%x", b)
+	once.Do(func() {
+		b := make([]byte, 8)
+		_, err := rand.Read(b)
+		if err != nil {
+			userID = fmt.Sprintf("user_%d", time.Now().UnixNano())
+		} else {
+			userID = fmt.Sprintf("user_%x", b)
+		}
+	})
+	return userID
 }

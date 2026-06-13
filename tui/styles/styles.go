@@ -55,15 +55,6 @@ var TextInputStyle = lipgloss.NewStyle().
 	Foreground(PrimaryColor).
 	Padding(0, 1)
 
-// Chat Styles
-var MessageStyle = lipgloss.NewStyle().
-	Foreground(SecondaryColor).
-	Padding(0, 1)
-
-var MessageYouStyle = lipgloss.NewStyle().
-	Foreground(PrimaryColor).
-	Padding(0, 1)
-
 func NewTextInput(isPassword bool) textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = ""

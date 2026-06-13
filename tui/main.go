@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -11,82 +11,52 @@ import (
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/styles"
 	"terminal_chat/tui/ui"
-	"terminal_chat/tui/utils"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/ssh"
-	"github.com/charmbracelet/wish"
-	wishtea "github.com/charmbracelet/wish/bubbletea"
-	"github.com/redis/go-redis/v9"
 )
 
-type StoreMessage struct {
-	RoomName string `json:"room_name"`
-	Message  string `json:"message"`
-	UserID   string `json:"user_id"`
-}
-
-// CurrentUserID returns the current user's ID
-func CurrentUserID() string {
-	return utils.CurrentUserID()
-}
-
 type Model struct {
-	Redis   *redis.Client
-	program *tea.Program
 	Screen  states.AppScreen
 	Screens map[string]states.AppScreen
 }
 
-// Init Method
 func (m Model) Init() tea.Cmd {
-	m.Redis = messageStore.GetClient()
 	f, err := os.OpenFile("debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.SetOutput(f)
-	// Start the Redis subscription
 	return m.listenForMessages()
 }
 
-// listenForMessages starts a Redis subscription and returns a command that processes messages
 func (m Model) listenForMessages() tea.Cmd {
 	return func() tea.Msg {
-		sub := m.Redis.Subscribe(context.Background(), "chat")
-		channel := sub.Channel()
-
-		for msg := range channel {
-			var message StoreMessage
-			if err := json.Unmarshal([]byte(msg.Payload), &message); err == nil {
-				return message
+		sub := messageStore.DefaultBroker().Subscribe("chat")
+		defer sub.Close()
+		for msg := range sub.Channel() {
+			var m states.Message
+			if err := json.Unmarshal([]byte(msg), &m); err == nil {
+				return m
 			}
 		}
 		return nil
 	}
 }
 
-// Update Method
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
-	// Handle the initial command from Init
 	case tea.Cmd:
 		return m, msg
 
-	case StoreMessage:
-		// Check if the current screen is ChatRoomScreen and the room name matches
-		if chatScreen, ok := m.Screen.(ui.ChatRoomScreen); ok {
-			if chatScreen.State.RoomName == msg.RoomName {
-				// Add the message to the messages slice with the user ID
-				chatScreen.UpdateMessage(msg.Message, msg.UserID)
-				m.Screen = chatScreen
-			}
+	case states.Message:
+		chat, ok := m.Screen.(ui.ChatRoomScreen)
+		if ok && chat.State.RoomName == msg.RoomName {
+			chat.UpdateMessage(msg)
+			m.Screen = chat
 		}
-		// Continue listening for more messages
 		return m, m.listenForMessages()
+
 	case tea.KeyMsg:
 		log.Println(msg.String())
 
@@ -97,18 +67,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if redirect == 1 {
-			// If current screen is RoomListScreen
 			if _, ok := m.Screen.(ui.RoomListScreen); ok {
-				// Add the current screen to the screens map
 				m.Screens["roomlist"] = m.Screen
 
-				// Create a new text input
 				ti := styles.NewTextInput(false)
 
-				// Update the current screen
 				m.Screen = ui.ChatRoomScreen{
 					State: &states.ChatState{
-						Redis:     m.Redis,
 						TextInput: ti,
 						RoomName:  m.Screen.(ui.RoomListScreen).State.Rooms[m.Screen.(ui.RoomListScreen).State.SelectedRoom],
 					},
@@ -116,10 +81,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				return m, textinput.Blink
 			} else if _, ok := m.Screen.(ui.ChatRoomScreen); ok {
-				// Add the current screen to the screens map
 				m.Screens["chatroom"] = m.Screen
-
-				// Update the current screen
 				m.Screen = m.Screens["roomlist"]
 			}
 		}
@@ -128,7 +90,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Handle text input updates
 		if _, ok := m.Screen.(ui.ChatRoomScreen); ok {
 			input := m.Screen.(ui.ChatRoomScreen).State.TextInput
 			input, cmd = input.Update(msg)
@@ -137,15 +98,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m, cmd
+	return m, nil
 }
 
-// View Method
 func (m Model) View() string {
 	return m.Screen.Render()
 }
 
-// newModel creates a new chat model
 func newModel() Model {
 	initState := states.RoomListState{
 		Rooms: []string{"Room 1", "Room 2", "Room 3"},
@@ -165,59 +124,38 @@ func newModel() Model {
 				},
 			},
 		},
-		Redis: messageStore.GetClient(),
 	}
 }
 
 func runLocal() {
 	initModel := newModel()
-
 	p := tea.NewProgram(initModel, tea.WithAltScreen())
-
-	initModel.program = p
-
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("There's been an error: %v", err)
 		os.Exit(1)
 	}
 }
 
-func runServer() {
-
-	// Ensure host key exists (generate once if needed):
-	//   ssh-keygen -t ed25519 -f .ssh/id_ed25519 -N ""
-	s, err := wish.NewServer(
-		wish.WithAddress(":2222"),
-		wish.WithHostKeyPath(".ssh/id_ed25519"),
-		wish.WithMiddleware(
-			// One Bubble Tea program per SSH session
-			wishtea.Middleware(func(sess ssh.Session) (tea.Model, []tea.ProgramOption) {
-				m := newModel()
-
-				program := tea.NewProgram(m, tea.WithAltScreen())
-				m.program = program
-
-				return m, []tea.ProgramOption{}
-			}),
-		),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("Starting SSH server on :2222")
-	if err := s.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
-
-}
-
 func main() {
+	serverAddr := flag.String("server", "", "Start TCP server on given address (e.g. :9000)")
+	connectAddr := flag.String("connect", "", "Connect to TCP server (e.g. localhost:9000)")
+	flag.Parse()
 
-	// Run Locally
+	if *serverAddr != "" {
+		if err := messageStore.StartServer(*serverAddr); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("TCP server started on", *serverAddr)
+		if err := messageStore.DefaultBroker().Connect(*serverAddr); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Connected to local TCP server")
+	} else if *connectAddr != "" {
+		if err := messageStore.DefaultBroker().Connect(*connectAddr); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Connected to TCP server at", *connectAddr)
+	}
+
 	runLocal()
-
-	// Run Server
-	//runServer()
-
 }
