@@ -34,7 +34,7 @@ func (s *RoomListScreen) Render(width, _ int) string {
 	sep := strings.Repeat("─", contentW-4)
 	footer := s.Footer.Render(contentW)
 
-	body := title + "\n" + items + "\n" + sep + "\n\n" + footer
+	body := title + "\n" + items + "\n" + sep + "\n" + footer
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
 	return styles.OuterFrame.Render(wrapper.Render(body)) + "\n"

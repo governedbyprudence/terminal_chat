@@ -61,28 +61,47 @@ func (s *ChatRoomScreen) publishPresence(action string) {
 
 func (s *ChatRoomScreen) Render(width, _ int) string {
 	contentW := width - styles.OuterFrameHSize
-	leftW := contentW - rightPanelWidth
+	leftW := contentW - rightPanelWidth - 2
 
 	title := s.TitleBar.Render(leftW)
 	messages := s.MessageList.Render(leftW)
 	input := s.InputBar.Render(leftW)
 	footer := s.Footer.Render(leftW)
 
-	leftBody := title + "\n" + messages + "\n" + input + "\n" + footer
+	leftBody := title + "\n" + messages + "\n" + input + footer
 	leftPadded := lipgloss.NewStyle().Width(leftW).Render(leftBody)
+
+	leftLines := strings.Count(leftPadded, "\n")
+	if leftPadded != "" && !strings.HasSuffix(leftPadded, "\n") {
+		leftLines++
+	}
+
+	var gapBuilder strings.Builder
+	for i := 0; i < leftLines-1; i++ {
+		gapBuilder.WriteString("  \n")
+	}
+	gapBuilder.WriteString("  ")
+	gap := gapBuilder.String()
 
 	var rightBuilder strings.Builder
 	rightBuilder.WriteString(styles.UserPanelTitle.Render("ONLINE"))
+	rightBuilder.WriteString("\n")
 	if s.UserList.Count() == 0 {
+		rightBuilder.WriteString("nobody here")
 		rightBuilder.WriteString("\n")
-		rightBuilder.WriteString(styles.EmptyState.Render("nobody here"))
 	} else {
-		rightBuilder.WriteString("\n")
 		rightBuilder.WriteString(s.UserList.Render(rightPanelWidth - 5))
 	}
-	rightPadded := styles.UserPanel.Width(rightPanelWidth-3).Render(rightBuilder.String())
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, rightPadded)
+	rightText := strings.TrimSuffix(rightBuilder.String(), "\n")
+	rightLines := strings.Count(rightText, "\n") + 1
+	for i := rightLines; i < leftLines; i++ {
+		rightText += "\n"
+	}
+
+	rightPadded := styles.UserPanel.Width(rightPanelWidth-3).Render(rightText)
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, gap, rightPadded)
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
 	return styles.OuterFrame.Render(wrapper.Render(body)) + "\n"

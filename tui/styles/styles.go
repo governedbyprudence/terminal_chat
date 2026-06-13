@@ -52,10 +52,10 @@ var InputPrompt = lipgloss.NewStyle().
 	Foreground(Accent).
 	Bold(true)
 
-// InputWrapper — top-bordered section separator above the input.
-// Top border only — no side borders, so it doesn't affect horizontal width.
+// InputWrapper — bordered section separator around the input.
+// Top+bottom borders only — no side borders, so it doesn't affect horizontal width.
 var InputWrapper = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder(), true, false, false, false).
+	Border(lipgloss.NormalBorder(), true, false, true, false).
 	BorderForeground(Accent).
 	Padding(0, 2)
 
