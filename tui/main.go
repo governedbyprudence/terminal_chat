@@ -110,7 +110,7 @@ func newModel(broker messageStore.Broker, rooms []string) Model {
 		broker:  broker,
 		chatSub: broker.Subscribe(messageStore.ChannelChat),
 		presSub: broker.Subscribe(messageStore.ChannelPresence),
-		Screen:  ui.NewRoomListScreen(broker, rooms),
+		Screen:  ui.NewChatRoomScreen(broker, nil, rooms, 0),
 	}
 }
 

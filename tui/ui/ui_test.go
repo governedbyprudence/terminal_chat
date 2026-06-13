@@ -15,7 +15,7 @@ import (
 func TestChatRoomScreen_Render_LineCount(t *testing.T) {
 	broker := messageStore.New()
 	backRef := ui.NewRoomListScreen(broker, []string{"back"})
-	screen := ui.NewChatRoomScreen(broker, backRef, "test",
+	screen := ui.NewChatRoomScreen(broker, backRef, []string{"test"}, 0,
 		models.Message{UserID: "alice", Text: "hi"},
 		models.Message{UserID: "bob", Text: "hello"},
 	)
@@ -38,7 +38,7 @@ func TestChatRoomScreen_Render_LineCount(t *testing.T) {
 func TestChatRoomScreen_Render_Small(t *testing.T) {
 	broker := messageStore.New()
 	backRef := ui.NewRoomListScreen(broker, []string{"back"})
-	screen := ui.NewChatRoomScreen(broker, backRef, "test")
+	screen := ui.NewChatRoomScreen(broker, backRef, []string{"test"}, 0)
 
 	width, height := 74, 10
 	out := screen.Render(width, height)
@@ -55,7 +55,7 @@ func TestChatRoomScreen_Render_Small(t *testing.T) {
 func TestChatRoomScreen_Render_NoTrailingNL(t *testing.T) {
 	broker := messageStore.New()
 	backRef := ui.NewRoomListScreen(broker, []string{"back"})
-	screen := ui.NewChatRoomScreen(broker, backRef, "test")
+	screen := ui.NewChatRoomScreen(broker, backRef, []string{"test"}, 0)
 
 	out := screen.Render(74, 24)
 	if strings.HasSuffix(out, "\n") {
@@ -66,7 +66,7 @@ func TestChatRoomScreen_Render_NoTrailingNL(t *testing.T) {
 func TestChatRoomScreen_Update_Message(t *testing.T) {
 	broker := messageStore.New()
 	backRef := ui.NewRoomListScreen(broker, []string{"back"})
-	screen := ui.NewChatRoomScreen(broker, backRef, "test",
+	screen := ui.NewChatRoomScreen(broker, backRef, []string{"test"}, 0,
 		models.Message{UserID: "alice", Text: "hi"},
 	)
 
@@ -85,7 +85,7 @@ func TestChatRoomScreen_Update_Message(t *testing.T) {
 func TestChatRoomScreen_Update_Escape(t *testing.T) {
 	broker := messageStore.New()
 	backRef := ui.NewRoomListScreen(broker, []string{"back"})
-	screen := ui.NewChatRoomScreen(broker, backRef, "test")
+	screen := ui.NewChatRoomScreen(broker, backRef, []string{"test"}, 0)
 
 	next, _ := screen.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if next != backRef {
@@ -96,7 +96,7 @@ func TestChatRoomScreen_Update_Escape(t *testing.T) {
 func TestChatRoomScreen_Update_PgUpDown(t *testing.T) {
 	broker := messageStore.New()
 	backRef := ui.NewRoomListScreen(broker, []string{"back"})
-	screen := ui.NewChatRoomScreen(broker, backRef, "test")
+	screen := ui.NewChatRoomScreen(broker, backRef, []string{"test"}, 0)
 
 	for i := 0; i < 15; i++ {
 		screen.Update(models.Message{
@@ -165,7 +165,7 @@ func TestChatRoomScreen_Update_EnterPublishes(t *testing.T) {
 	defer sub.Close()
 
 	backRef := ui.NewRoomListScreen(broker, []string{"back"})
-	screen := ui.NewChatRoomScreen(broker, backRef, "test")
+	screen := ui.NewChatRoomScreen(broker, backRef, []string{"test"}, 0)
 
 	screen.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("test msg")})
 	next, _ := screen.Update(tea.KeyMsg{Type: tea.KeyEnter})

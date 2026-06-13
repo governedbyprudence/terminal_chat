@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"terminal_chat/tui/components"
 
 	"github.com/charmbracelet/lipgloss"
@@ -17,5 +19,9 @@ func outerFrameHSize() int {
 
 func outerFrameVSize() int {
 	return outerFrame.GetVerticalFrameSize()
+}
+
+func sepLine(width int) string {
+	return strings.Repeat("─", width)
 }
 

@@ -9,12 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/lipgloss"
 )
-
-var roomSeparator = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder(), false, false, true, false).
-	BorderForeground(components.Accent)
 
 type RoomListScreen struct {
 	TitleBar *components.TitleBar
@@ -38,7 +33,7 @@ func (s *RoomListScreen) Render(width, height int) string {
 
 	title := s.TitleBar.Render(contentW)
 	items := s.RoomList.Render(contentW)
-	sep := roomSeparator.Width(contentW).Render("")
+	sep := sepLine(contentW)
 	footer := s.Footer.Render(contentW)
 
 	body := title + "\n" + items + "\n" + sep + "\n" + footer
@@ -50,8 +45,7 @@ func (s *RoomListScreen) Render(width, height int) string {
 		body = strings.Join(strings.Split(body, "\n")[bodyLines-contentH:], "\n")
 	}
 
-	wrapper := lipgloss.NewStyle().Width(contentW)
-	return outerFrame.Render(wrapper.Render(body))
+	return outerFrame.Render(body)
 }
 
 func (s *RoomListScreen) Update(msg tea.Msg) (models.AppScreen, tea.Cmd) {
@@ -62,8 +56,7 @@ func (s *RoomListScreen) Update(msg tea.Msg) (models.AppScreen, tea.Cmd) {
 			return s, cmd
 		}
 		if redirect == components.RedirectSelect {
-			roomName := s.RoomList.Rooms[s.RoomList.SelectedRoom]
-			chat := NewChatRoomScreen(s.broker, s, roomName)
+			chat := NewChatRoomScreen(s.broker, s, s.RoomList.Rooms, s.RoomList.SelectedRoom)
 			return chat, textinput.Blink
 		}
 	}

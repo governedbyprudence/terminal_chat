@@ -181,3 +181,15 @@ func TestMessageList_Render_ExactFit(t *testing.T) {
 		t.Errorf("expected 2 lines, got %d", len(lines))
 	}
 }
+
+func TestRoomTabs_Render(t *testing.T) {
+	rt := NewRoomTabs([]string{"Room 1", "Room 2", "Room 3"})
+	out := rt.Render(74)
+	t.Logf("RoomTabs output (len=%d): %q", len(out), out)
+	if !strings.Contains(out, "Room 1") {
+		t.Error("expected Room 1 in tab output")
+	}
+	if !strings.Contains(out, "Room 2") {
+		t.Error("expected Room 2 in tab output")
+	}
+}
