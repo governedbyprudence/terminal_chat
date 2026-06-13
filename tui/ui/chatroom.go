@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"log"
+	"strings"
 
 	"terminal_chat/tui/messageStore"
 	"terminal_chat/tui/models/states"
@@ -17,27 +18,53 @@ type ChatRoomScreen struct {
 	State *states.ChatState
 }
 
-func (s ChatRoomScreen) Render() string {
-	title := styles.TitleStyle.Render("Chat Room: " + s.State.RoomName)
-	body := ""
+func (s ChatRoomScreen) Render(width, height int) string {
+	contentW := width - styles.OuterFrameHSize
 
+	title := styles.TitleBar.Render("  " + s.State.RoomName + "  ")
+
+	messages := ""
 	for _, msg := range s.State.Messages {
+		shortID := msg.UserID
+		if len(shortID) > 6 {
+			shortID = shortID[:6]
+		}
+
 		if msg.UserID == utils.CurrentUserID() {
-			m := lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Render("You: " + msg.Text)
-			body += lipgloss.NewStyle().Align(lipgloss.Right).Render(m) + "\n"
+			line := styles.SentMessage.Render(msg.Text)
+			meta := styles.MessageTimestamp.Render("you")
+			messages += meta + "\n" + line + "\n"
 		} else {
-			m := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Render(msg.UserID[:6] + ": " + msg.Text)
-			body += lipgloss.NewStyle().Align(lipgloss.Left).Render(m) + "\n"
+			rightPad := func(s string) string {
+				w := lipgloss.Width(s)
+				if w >= contentW {
+					return s
+				}
+				return strings.Repeat(" ", contentW-w) + s
+			}
+			messages += rightPad(styles.ReceivedMessage.Render(msg.Text)) + "\n"
+			messages += rightPad(styles.SenderLabel.Render(shortID)) + "\n"
 		}
 	}
 
-	body = lipgloss.JoinVertical(lipgloss.Top, body)
+	if messages == "" {
+		messages = styles.EmptyState.Render("  no messages yet")
+	}
 
 	s.State.TextInput.Focus()
-	body += "\n> " + s.State.TextInput.View()
+	s.State.TextInput.Width = contentW - 7
 
-	footer := styles.FooterStyle.Render("Type message and press `enter` to send.\n\nPress `esc` to go back to room list.")
-	return lipgloss.JoinVertical(lipgloss.Top, title, body, footer)
+	input := styles.InputWrapper.Render(
+		styles.InputPrompt.Render("> ") + s.State.TextInput.View(),
+	)
+
+	footer := styles.FooterText.Render(
+		"ENTER send  ·  ESC back to rooms",
+	)
+
+	body := title + "\n" + messages + "\n" + input + "\n" + footer
+
+	return styles.OuterFrame.Render(body)
 }
 
 func (s ChatRoomScreen) OnPressKey(key string) (int, tea.Cmd) {

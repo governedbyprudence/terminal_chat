@@ -5,54 +5,87 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Colors
+// 5-color brutalist palette — every color has a functional semantic purpose.
 var (
-	PrimaryColor    = lipgloss.Color("205")
-	SecondaryColor  = lipgloss.Color("24")
-	HighlightColor  = lipgloss.Color("11")
-	BackgroundColor = lipgloss.Color("235")
+	DeepBg  = lipgloss.Color("#0D0D0D")
+	Surface = lipgloss.Color("#1A1A1A")
+	Text    = lipgloss.Color("#E8E8E8")
+	DimText = lipgloss.Color("#6B6B6B")
+	Accent  = lipgloss.Color("#FF6A00")
 )
 
-// Title style with centered text and improved appearance
-var TitleStyle = lipgloss.NewStyle().
-	Foreground(PrimaryColor).
-	Bold(true).
-	Padding(1, 2).
-	Align(lipgloss.Center)
-
-// Menu item styles
-var MenuItemStyle = lipgloss.NewStyle().
-	Foreground(SecondaryColor).
-	Padding(0, 1)
-
-// Sidebar with improved border and styling
-var SidebarStyle = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder(), true).
-	BorderForeground(SecondaryColor).
-	Width(25).
-	Padding(1, 1).
-	Margin(0, 1).
-	Align(lipgloss.Center)
-
-// Main content area with rounded borders and better styling
-var MainStyle = lipgloss.NewStyle().
-	Padding(1, 2).
-	Align(lipgloss.Center)
-
-var SelectedMenuItemStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("229")).
-	Background(lipgloss.Color("57")).
-	Padding(0, 1).
-	Bold(true)
-
-var FooterStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("241")).
-	Italic(true).
-	MarginTop(1).
+// OuterFrame — single accent double border.
+// No fixed width — content determines size, so inner alignment isn't overridden.
+var OuterFrame = lipgloss.NewStyle().
+	Border(lipgloss.DoubleBorder(), true).
+	BorderForeground(Accent).
 	Padding(0, 2)
 
+const OuterFrameHSize = 1 + 1 + 2 + 2 // border (║║) + padding (0+2+2)
+
+// TitleBar — accent-filled header.
+var TitleBar = lipgloss.NewStyle().
+	Background(Accent).
+	Foreground(DeepBg).
+	Bold(true).
+	Padding(0, 3)
+
+// MenuItem — unselected room row.
+var MenuItem = lipgloss.NewStyle().
+	Foreground(Text).
+	Padding(0, 2)
+
+// SelectedMenuItem — selected room with accent background.
+var SelectedMenuItem = lipgloss.NewStyle().
+	Background(Accent).
+	Foreground(DeepBg).
+	Bold(true).
+	Padding(0, 2)
+
+// FooterText — dim navigation hint.
+var FooterText = lipgloss.NewStyle().
+	Foreground(DimText).
+	Padding(0, 2)
+
+// InputPrompt — accent prompt character.
+var InputPrompt = lipgloss.NewStyle().
+	Foreground(Accent).
+	Bold(true)
+
+// InputWrapper — top-bordered section separator above the input.
+// Top border only — no side borders, so it doesn't affect horizontal width.
+var InputWrapper = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder(), true, false, false, false).
+	BorderForeground(Accent).
+	Padding(0, 2)
+
+// SentMessage — own messages: bold weight (no padding — alignment handles it).
+var SentMessage = lipgloss.NewStyle().
+	Foreground(Text).
+	Bold(true)
+
+// ReceivedMessage — others' messages: normal weight (no padding).
+var ReceivedMessage = lipgloss.NewStyle().
+	Foreground(Text)
+
+// SenderLabel — dim sender tag.
+var SenderLabel = lipgloss.NewStyle().
+	Foreground(DimText)
+
+// MessageTimestamp — dim italic label.
+var MessageTimestamp = lipgloss.NewStyle().
+	Foreground(DimText).
+	Italic(true)
+
+// EmptyState — dim placeholder.
+var EmptyState = lipgloss.NewStyle().
+	Foreground(DimText).
+	Italic(true).
+	Padding(1, 2)
+
+// TextInputStyle — input text style.
 var TextInputStyle = lipgloss.NewStyle().
-	Foreground(PrimaryColor).
+	Foreground(Text).
 	Padding(0, 1)
 
 func NewTextInput(isPassword bool) textinput.Model {
@@ -63,6 +96,5 @@ func NewTextInput(isPassword bool) textinput.Model {
 	if isPassword {
 		ti.EchoMode = textinput.EchoPassword
 	}
-
 	return ti
 }

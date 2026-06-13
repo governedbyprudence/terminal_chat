@@ -1,37 +1,46 @@
 package ui
 
 import (
+	"strings"
+
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/styles"
 
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 )
 
 type RoomListScreen struct {
 	State *states.RoomListState
 }
 
-func (s RoomListScreen) Render() string {
-	title := styles.TitleStyle.Render("Room List")
+func (s RoomListScreen) Render(width, height int) string {
+	contentW := width - styles.OuterFrameHSize
 
-	body := ""
+	frame := styles.OuterFrame.Width(contentW)
 
+	title := styles.TitleBar.Render("  ROOMS  ")
+
+	items := ""
 	for i, room := range s.State.Rooms {
 		if i == s.State.SelectedRoom {
-			body += styles.SelectedMenuItemStyle.Render(room) + "\n"
+			items += styles.SelectedMenuItem.Render("  > " + room) + "\n"
 		} else {
-			body += styles.MenuItemStyle.Render(room) + "\n"
+			items += styles.MenuItem.Render("    " + room) + "\n"
 		}
 	}
 
-	footer := styles.FooterStyle.Render("Use ↑ ↓ to navigate the menu.\n\nPress `q` to quit.")
+	sep := strings.Repeat("─", contentW-4)
 
-	return lipgloss.JoinVertical(lipgloss.Top, title, body, footer)
+	footer := styles.FooterText.Render(
+		"UP/DOWN navigate  ·  ENTER select  ·  q quit",
+	)
+
+	body := title + "\n" + items + "\n" + sep + "\n\n" + footer
+
+	return frame.Render(body)
 }
 
 func (s RoomListScreen) OnPressKey(key string) (int, tea.Cmd) {
-
 	switch key {
 	case "down":
 		if s.State.SelectedRoom < len(s.State.Rooms)-1 {
@@ -42,8 +51,7 @@ func (s RoomListScreen) OnPressKey(key string) (int, tea.Cmd) {
 			s.State.SelectedRoom--
 		}
 	case "enter":
-		return 1, nil // Redirect to chat screen
+		return 1, nil
 	}
-
-	return 0, nil // No redirect
+	return 0, nil
 }

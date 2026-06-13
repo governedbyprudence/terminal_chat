@@ -14,11 +14,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
-	Screen  states.AppScreen
-	Screens map[string]states.AppScreen
+	Width, Height int
+	Screen        states.AppScreen
+	Screens       map[string]states.AppScreen
 }
 
 func (m Model) Init() tea.Cmd {
@@ -46,6 +48,11 @@ func (m Model) listenForMessages() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width
+		m.Height = msg.Height
+		return m, nil
+
 	case tea.Cmd:
 		return m, msg
 
@@ -102,7 +109,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	return m.Screen.Render()
+	minW := 50
+	if m.Width < minW {
+		return lipgloss.NewStyle().
+			Foreground(styles.Accent).
+			Bold(true).
+			Padding(2, 2).
+			Render(fmt.Sprintf("Terminal too narrow (%d cols).\nMinimum width: %d columns.", m.Width, minW))
+	}
+	return m.Screen.Render(m.Width, m.Height)
 }
 
 func newModel() Model {

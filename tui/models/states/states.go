@@ -23,6 +23,6 @@ type ChatState struct {
 }
 
 type AppScreen interface {
-	Render() string
+	Render(width, height int) string
 	OnPressKey(key string) (int, tea.Cmd)
 }
