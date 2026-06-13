@@ -29,7 +29,8 @@ var senderLabel = lipgloss.NewStyle().
 	Foreground(DimText)
 
 type MessageList struct {
-	Messages []models.Message
+	Messages     []models.Message
+	scrollOffset int
 }
 
 func NewMessageList() *MessageList {
@@ -65,13 +66,40 @@ func fitWidth(s string, width int) string {
 	return b.String()
 }
 
-func (m *MessageList) Render(width int) string {
+func (m *MessageList) Render(width, maxHeight int) string {
 	if len(m.Messages) == 0 {
-		return emptyState.Render("  no messages yet")
+		m.scrollOffset = 0
+		empty := emptyState.Render("  no messages yet")
+		emptyLines := strings.Count(empty, "\n") + 1
+		padLines := maxHeight - emptyLines
+		if padLines > 0 {
+			return strings.Repeat("\n", padLines) + empty
+		}
+		return empty
 	}
 
-	var b strings.Builder
-	for _, msg := range m.Messages {
+	linesPerMsg := 2
+	maxMsgs := maxHeight / linesPerMsg
+	if maxMsgs <= 0 {
+		maxMsgs = 1
+	}
+
+	maxOffset := max(0, len(m.Messages)-maxMsgs)
+	if m.scrollOffset > maxOffset {
+		m.scrollOffset = maxOffset
+	}
+
+	start := maxOffset - m.scrollOffset
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxMsgs
+	if end > len(m.Messages) {
+		end = len(m.Messages)
+	}
+
+	var msgBuf strings.Builder
+	for _, msg := range m.Messages[start:end] {
 		shortID := msg.UserID
 		if len(shortID) > 6 {
 			shortID = shortID[:6]
@@ -81,20 +109,38 @@ func (m *MessageList) Render(width int) string {
 		if msg.UserID == models.CurrentUserID() {
 			meta := messageTimestamp.Render("you")
 			line := sentMessage.Render(text)
-			b.WriteString(meta)
-			b.WriteString("\n")
-			b.WriteString(line)
-			b.WriteString("\n")
+			msgBuf.WriteString(meta)
+			msgBuf.WriteString("\n")
+			msgBuf.WriteString(line)
+			msgBuf.WriteString("\n")
 		} else {
 			line := rightPad(receivedMessage.Render(text), width)
 			sender := rightPad(senderLabel.Render(shortID), width)
-			b.WriteString(line)
-			b.WriteString("\n")
-			b.WriteString(sender)
-			b.WriteString("\n")
+			msgBuf.WriteString(line)
+			msgBuf.WriteString("\n")
+			msgBuf.WriteString(sender)
+			msgBuf.WriteString("\n")
 		}
 	}
-	return b.String()
+
+	rendered := msgBuf.String()
+	renderedLines := strings.Count(rendered, "\n")
+	padLines := maxHeight - renderedLines
+	if padLines > 0 {
+		rendered = strings.Repeat("\n", padLines) + rendered
+	}
+	return strings.TrimRight(rendered, "\n")
+}
+
+func (m *MessageList) ScrollUp(n int) {
+	m.scrollOffset += n
+}
+
+func (m *MessageList) ScrollDown(n int) {
+	m.scrollOffset -= n
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
 }
 
 func (m *MessageList) OnKeyPress(key string) (int, tea.Cmd) {

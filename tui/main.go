@@ -98,7 +98,11 @@ func (m Model) View() string {
 			Padding(2, 2).
 			Render(fmt.Sprintf("Terminal too narrow (%d cols).\nMinimum width: %d columns.", m.Width, minW))
 	}
-	return m.Screen.Render(m.Width)
+	h := m.Height
+	if h < 10 {
+		h = 10
+	}
+	return m.Screen.Render(m.Width, h)
 }
 
 func newModel(broker messageStore.Broker) Model {

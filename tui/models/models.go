@@ -22,7 +22,7 @@ type PresenceEvent struct {
 }
 
 type AppScreen interface {
-	Render(width int) string
+	Render(width, height int) string
 	Update(msg tea.Msg) (AppScreen, tea.Cmd)
 }
 

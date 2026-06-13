@@ -32,21 +32,22 @@ func NewUserPanel() *UserPanel {
 	return &UserPanel{UserList: NewUserList()}
 }
 
-func (p *UserPanel) RenderContent() string {
+func (p *UserPanel) RenderContent(contentWidth int) string {
 	var b strings.Builder
-	b.WriteString(userPanelTitle.Render("ONLINE"))
+	b.WriteString(userPanelTitle.Width(contentWidth).Render("ONLINE"))
 	b.WriteString("\n")
 	if p.UserList.Count() == 0 {
 		b.WriteString("nobody here")
 		b.WriteString("\n")
 	} else {
-		b.WriteString(p.UserList.Render(RightPanelWidth - userPanelInnerAdjust))
+		b.WriteString(p.UserList.Render(contentWidth))
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func (p *UserPanel) RenderFull(targetLines int) string {
-	content := p.RenderContent()
+	contentWidth := RightPanelWidth - userPanelBorderAdj - 3 // minus left/right padding and right border
+	content := p.RenderContent(contentWidth)
 	contentLines := strings.Count(content, "\n") + 1
 
 	var gapBuf strings.Builder

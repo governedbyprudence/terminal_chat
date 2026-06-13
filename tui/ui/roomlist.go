@@ -28,7 +28,7 @@ func NewRoomListScreen(broker messageStore.Broker, rooms []string) *RoomListScre
 	}
 }
 
-func (s *RoomListScreen) Render(width int) string {
+func (s *RoomListScreen) Render(width, height int) string {
 	contentW := width - outerFrameHSize()
 
 	title := s.TitleBar.Render(contentW)
@@ -39,7 +39,7 @@ func (s *RoomListScreen) Render(width int) string {
 	body := title + "\n" + items + "\n" + sep + "\n" + footer
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
-	return outerFrame.Render(wrapper.Render(body)) + "\n"
+	return outerFrame.Render(wrapper.Render(body))
 }
 
 func (s *RoomListScreen) Update(msg tea.Msg) (models.AppScreen, tea.Cmd) {

@@ -1,12 +1,13 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffd8d8', 'primaryBorderColor': '#ff9e9e', 'lineColor': '#ff9e9e'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#d8ffd8', 'primaryBorderColor': '#9eff9e', 'lineColor': '#9eff9e'}}}%%
 graph TD
-    subgraph "Wish Server"
-        SSH[SSH Server] -->|Hosts| TUI
-        TUI[BubbleTea TUI] -->|Uses| Redis[(Redis)]
+    subgraph "Terminal Chat"
+        TUI[BubbleTea TUI] -->|Subscribes/Publishes| Broker[In-Memory Broker]
+        TUI -->|Optional TCP| TCP[TCP Server/Client]
+        TCP -->|Relays JSON| Broker
     end
     
-    User1[User 1] -->|SSH Connection| SSH
-    User2[User 2] -->|SSH Connection| SSH
+    User1[Local User] -->|Terminal| TUI
+    User2[Remote User] -->|TCP Connection| TCP
+    UserN[Remote User N] -->|TCP Connection| TCP
     
-    TUI -->|Publishes| Redis
-    TUI -->|Subscribes| Redis
+    TCP -->|Broadcasts| RemoteClients[Connected Remote Clients]

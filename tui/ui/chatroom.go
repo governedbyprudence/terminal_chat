@@ -57,27 +57,34 @@ func (s *ChatRoomScreen) publishPresence(action string) {
 	s.broker.Publish(messageStore.ChannelPresence, string(data))
 }
 
-func (s *ChatRoomScreen) Render(width int) string {
+func (s *ChatRoomScreen) Render(width, height int) string {
 	contentW := width - outerFrameHSize()
+	contentH := height - outerFrameVSize()
 	leftW := contentW - components.RightPanelWidth - components.PanelGap
 
 	title := s.TitleBar.Render(leftW)
-	messages := s.MessageList.Render(leftW)
+
+	msgHeight := contentH - 5
+	if msgHeight < 2 {
+		msgHeight = 2
+	}
+	messages := s.MessageList.Render(leftW, msgHeight)
+
 	input := s.InputBar.Render(leftW)
 	footer := s.Footer.Render(leftW)
 
-	leftBody := title + "\n" + messages + "\n" + input + footer
+	leftBody := title + "\n" + messages + "\n" + input + "\n" + footer
 	leftPadded := lipgloss.NewStyle().Width(leftW).Render(leftBody)
 
-	leftHeight := strings.Count(leftPadded, "\n")
-	if !strings.HasSuffix(leftPadded, "\n") {
-		leftHeight++
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, s.UserPanel.RenderFull(contentH))
+
+	bodyLines := strings.Count(body, "\n") + 1
+	if bodyLines > contentH {
+		body = strings.Join(strings.Split(body, "\n")[bodyLines-contentH:], "\n")
 	}
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, s.UserPanel.RenderFull(leftHeight))
-
 	wrapper := lipgloss.NewStyle().Width(contentW)
-	return outerFrame.Render(wrapper.Render(body)) + "\n"
+	return outerFrame.Render(wrapper.Render(body))
 }
 
 func (s *ChatRoomScreen) Update(msg tea.Msg) (models.AppScreen, tea.Cmd) {
@@ -103,6 +110,12 @@ func (s *ChatRoomScreen) Update(msg tea.Msg) (models.AppScreen, tea.Cmd) {
 				s.broker.Publish(messageStore.ChannelChat, string(data))
 				s.InputBar.SetValue("")
 			}
+			return s, nil
+		case "pgup":
+			s.MessageList.ScrollUp(5)
+			return s, nil
+		case "pgdown":
+			s.MessageList.ScrollDown(5)
 			return s, nil
 		default:
 			return s, s.InputBar.Update(msg)

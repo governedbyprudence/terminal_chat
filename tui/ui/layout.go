@@ -14,3 +14,8 @@ var outerFrame = lipgloss.NewStyle().
 func outerFrameHSize() int {
 	return outerFrame.GetHorizontalFrameSize()
 }
+
+func outerFrameVSize() int {
+	return outerFrame.GetVerticalFrameSize()
+}
+

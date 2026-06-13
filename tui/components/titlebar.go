@@ -19,8 +19,8 @@ func NewTitleBar(title string) *TitleBar {
 	return &TitleBar{Title: title}
 }
 
-func (t *TitleBar) Render(_ int) string {
-	return titleBarStyle.Render("  " + t.Title + "  ")
+func (t *TitleBar) Render(width int) string {
+	return titleBarStyle.Width(width).Render("  " + t.Title + "  ")
 }
 
 func (t *TitleBar) OnKeyPress(key string) (int, tea.Cmd) {
