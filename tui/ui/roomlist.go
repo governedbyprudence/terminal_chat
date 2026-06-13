@@ -3,55 +3,55 @@ package ui
 import (
 	"strings"
 
+	"terminal_chat/tui/components"
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/styles"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type RoomListScreen struct {
-	State *states.RoomListState
+	TitleBar *components.TitleBar
+	RoomList *components.RoomList
+	Footer   *components.Footer
 }
 
-func (s RoomListScreen) Render(width, height int) string {
+func NewRoomListScreen(rooms []string) *RoomListScreen {
+	return &RoomListScreen{
+		TitleBar: components.NewTitleBar("ROOMS"),
+		RoomList: components.NewRoomList(rooms),
+		Footer:   components.NewFooter("UP/DOWN navigate  ·  ENTER select  ·  q quit"),
+	}
+}
+
+func (s *RoomListScreen) Render(width, _ int) string {
 	contentW := width - styles.OuterFrameHSize
 
-	frame := styles.OuterFrame.Width(contentW)
-
-	title := styles.TitleBar.Render("  ROOMS  ")
-
-	items := ""
-	for i, room := range s.State.Rooms {
-		if i == s.State.SelectedRoom {
-			items += styles.SelectedMenuItem.Render("  > " + room) + "\n"
-		} else {
-			items += styles.MenuItem.Render("    " + room) + "\n"
-		}
-	}
-
+	title := s.TitleBar.Render(contentW)
+	items := s.RoomList.Render(contentW)
 	sep := strings.Repeat("─", contentW-4)
-
-	footer := styles.FooterText.Render(
-		"UP/DOWN navigate  ·  ENTER select  ·  q quit",
-	)
+	footer := s.Footer.Render(contentW)
 
 	body := title + "\n" + items + "\n" + sep + "\n\n" + footer
 
-	return frame.Render(body)
+	wrapper := lipgloss.NewStyle().Width(contentW)
+	return styles.OuterFrame.Render(wrapper.Render(body))
 }
 
-func (s RoomListScreen) OnPressKey(key string) (int, tea.Cmd) {
-	switch key {
-	case "down":
-		if s.State.SelectedRoom < len(s.State.Rooms)-1 {
-			s.State.SelectedRoom++
+func (s *RoomListScreen) Update(msg tea.Msg) (states.AppScreen, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		redirect, cmd := s.RoomList.OnKeyPress(msg.String())
+		if cmd != nil {
+			return s, cmd
 		}
-	case "up":
-		if s.State.SelectedRoom > 0 {
-			s.State.SelectedRoom--
+		if redirect == 1 {
+			roomName := s.RoomList.Rooms[s.RoomList.SelectedRoom]
+			chat := NewChatRoomScreen(s, roomName)
+			return chat, textinput.Blink
 		}
-	case "enter":
-		return 1, nil
 	}
-	return 0, nil
+	return s, nil
 }

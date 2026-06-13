@@ -12,19 +12,17 @@ import (
 	"terminal_chat/tui/styles"
 	"terminal_chat/tui/ui"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
-
 type Model struct {
 	Width, Height int
 	Screen        states.AppScreen
-	Screens       map[string]states.AppScreen
 }
 
 func (m Model) Init() tea.Cmd {
-	f, err := os.OpenFile("debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile("debug.log",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -36,10 +34,10 @@ func (m Model) listenForMessages() tea.Cmd {
 	return func() tea.Msg {
 		sub := messageStore.DefaultBroker().Subscribe("chat")
 		defer sub.Close()
-		for msg := range sub.Channel() {
-			var m states.Message
-			if err := json.Unmarshal([]byte(msg), &m); err == nil {
-				return m
+		for raw := range sub.Channel() {
+			var msg states.Message
+			if err := json.Unmarshal([]byte(raw), &msg); err == nil {
+				return msg
 			}
 		}
 		return nil
@@ -53,56 +51,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Height = msg.Height
 		return m, nil
 
-	case tea.Cmd:
-		return m, msg
-
-	case states.Message:
-		chat, ok := m.Screen.(ui.ChatRoomScreen)
-		if ok && chat.State.RoomName == msg.RoomName {
-			chat.UpdateMessage(msg)
-			m.Screen = chat
-		}
-		return m, m.listenForMessages()
-
 	case tea.KeyMsg:
-		log.Println(msg.String())
-
-		redirect, cmd := m.Screen.OnPressKey(msg.String())
-
-		if cmd != nil {
-			return m, cmd
-		}
-
-		if redirect == 1 {
-			if _, ok := m.Screen.(ui.RoomListScreen); ok {
-				m.Screens["roomlist"] = m.Screen
-
-				ti := styles.NewTextInput(false)
-
-				m.Screen = ui.ChatRoomScreen{
-					State: &states.ChatState{
-						TextInput: ti,
-						RoomName:  m.Screen.(ui.RoomListScreen).State.Rooms[m.Screen.(ui.RoomListScreen).State.SelectedRoom],
-					},
-				}
-
-				return m, textinput.Blink
-			} else if _, ok := m.Screen.(ui.ChatRoomScreen); ok {
-				m.Screens["chatroom"] = m.Screen
-				m.Screen = m.Screens["roomlist"]
-			}
-		}
-
 		if msg.String() == "q" {
 			return m, tea.Quit
 		}
+		s, cmd := m.Screen.Update(msg)
+		m.Screen = s
+		return m, cmd
 
-		if _, ok := m.Screen.(ui.ChatRoomScreen); ok {
-			input := m.Screen.(ui.ChatRoomScreen).State.TextInput
-			input, cmd = input.Update(msg)
-			m.Screen.(ui.ChatRoomScreen).State.TextInput = input
-			return m, cmd
-		}
+	case states.Message:
+		s, _ := m.Screen.Update(msg)
+		m.Screen = s
+		return m, m.listenForMessages()
 	}
 
 	return m, nil
@@ -121,24 +81,8 @@ func (m Model) View() string {
 }
 
 func newModel() Model {
-	initState := states.RoomListState{
-		Rooms: []string{"Room 1", "Room 2", "Room 3"},
-	}
-
-	initScreen := ui.RoomListScreen{
-		State: &initState,
-	}
-
 	return Model{
-		Screen: initScreen,
-		Screens: map[string]states.AppScreen{
-			"roomlist": initScreen,
-			"chatroom": ui.ChatRoomScreen{
-				State: &states.ChatState{
-					RoomName: "Room 1",
-				},
-			},
-		},
+		Screen: ui.NewRoomListScreen([]string{"Room 1", "Room 2", "Room 3"}),
 	}
 }
 

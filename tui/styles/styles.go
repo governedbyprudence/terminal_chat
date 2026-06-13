@@ -84,9 +84,10 @@ var EmptyState = lipgloss.NewStyle().
 	Padding(1, 2)
 
 // TextInputStyle — input text style.
+// Padding is intentionally excluded: textinput calls TextStyle.Inline(true)
+// internally, which silently strips padding/borders/margins.
 var TextInputStyle = lipgloss.NewStyle().
-	Foreground(Text).
-	Padding(0, 1)
+	Foreground(Text)
 
 func NewTextInput(isPassword bool) textinput.Model {
 	ti := textinput.New()

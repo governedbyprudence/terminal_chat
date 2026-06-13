@@ -3,8 +3,8 @@ package ui
 import (
 	"encoding/json"
 	"log"
-	"strings"
 
+	"terminal_chat/tui/components"
 	"terminal_chat/tui/messageStore"
 	"terminal_chat/tui/models/states"
 	"terminal_chat/tui/styles"
@@ -15,87 +15,73 @@ import (
 )
 
 type ChatRoomScreen struct {
-	State *states.ChatState
+	RoomName    string
+	MessageList *components.MessageList
+	InputBar    *components.InputBar
+	TitleBar    *components.TitleBar
+	Footer      *components.Footer
+	backRef     states.AppScreen
 }
 
-func (s ChatRoomScreen) Render(width, height int) string {
+func NewChatRoomScreen(backRef states.AppScreen, roomName string, messages ...states.Message) *ChatRoomScreen {
+	s := &ChatRoomScreen{
+		RoomName:    roomName,
+		backRef:     backRef,
+		MessageList: components.NewMessageList(),
+		InputBar:    components.NewInputBar(""),
+		TitleBar:    components.NewTitleBar(roomName),
+		Footer:      components.NewFooter("ENTER send  ·  ESC back to rooms"),
+	}
+	for _, msg := range messages {
+		s.MessageList.AddMessage(msg)
+	}
+	return s
+}
+
+func (s *ChatRoomScreen) Render(width, _ int) string {
 	contentW := width - styles.OuterFrameHSize
 
-	title := styles.TitleBar.Render("  " + s.State.RoomName + "  ")
-
-	messages := ""
-	for _, msg := range s.State.Messages {
-		shortID := msg.UserID
-		if len(shortID) > 6 {
-			shortID = shortID[:6]
-		}
-
-		if msg.UserID == utils.CurrentUserID() {
-			line := styles.SentMessage.Render(msg.Text)
-			meta := styles.MessageTimestamp.Render("you")
-			messages += meta + "\n" + line + "\n"
-		} else {
-			rightPad := func(s string) string {
-				w := lipgloss.Width(s)
-				if w >= contentW {
-					return s
-				}
-				return strings.Repeat(" ", contentW-w) + s
-			}
-			messages += rightPad(styles.ReceivedMessage.Render(msg.Text)) + "\n"
-			messages += rightPad(styles.SenderLabel.Render(shortID)) + "\n"
-		}
-	}
-
-	if messages == "" {
-		messages = styles.EmptyState.Render("  no messages yet")
-	}
-
-	s.State.TextInput.Focus()
-	s.State.TextInput.Width = contentW - 7
-
-	input := styles.InputWrapper.Render(
-		styles.InputPrompt.Render("> ") + s.State.TextInput.View(),
-	)
-
-	footer := styles.FooterText.Render(
-		"ENTER send  ·  ESC back to rooms",
-	)
+	title := s.TitleBar.Render(contentW)
+	messages := s.MessageList.Render(contentW)
+	input := s.InputBar.Render(contentW)
+	footer := s.Footer.Render(contentW)
 
 	body := title + "\n" + messages + "\n" + input + "\n" + footer
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
-	wrapped := wrapper.Render(body)
-
-	return styles.OuterFrame.Render(wrapped) + "\n"
+	return styles.OuterFrame.Render(wrapper.Render(body)) + "\n"
 }
 
-func (s ChatRoomScreen) OnPressKey(key string) (int, tea.Cmd) {
-	switch key {
-	case "esc":
-		return 1, nil
-	case "enter":
-		if s.State.TextInput.Value() != "" {
-			msg := states.Message{
-				RoomName: s.State.RoomName,
-				Text:     s.State.TextInput.Value(),
-				UserID:   utils.CurrentUserID(),
+func (s *ChatRoomScreen) Update(msg tea.Msg) (states.AppScreen, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			return s.backRef, nil
+		case "enter":
+			if s.InputBar.Value() != "" {
+				m := states.Message{
+					RoomName: s.RoomName,
+					Text:     s.InputBar.Value(),
+					UserID:   utils.CurrentUserID(),
+				}
+				data, err := json.Marshal(m)
+				if err != nil {
+					log.Println(err)
+					return s, nil
+				}
+				messageStore.DefaultBroker().Publish("chat", string(data))
+				s.InputBar.SetValue("")
 			}
-
-			data, err := json.Marshal(msg)
-			if err != nil {
-				log.Println(err)
-				return 0, nil
-			}
-
-			messageStore.DefaultBroker().Publish("chat", string(data))
-			s.State.TextInput.SetValue("")
-			return 0, nil
+			return s, nil
+		default:
+			return s, s.InputBar.Update(msg)
 		}
+	case states.Message:
+		if msg.RoomName == s.RoomName {
+			s.MessageList.AddMessage(msg)
+		}
+		return s, nil
 	}
-	return 0, nil
-}
-
-func (s *ChatRoomScreen) UpdateMessage(msg states.Message) {
-	s.State.Messages = append(s.State.Messages, msg)
+	return s, nil
 }
