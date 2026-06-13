@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"terminal_chat/tui/components"
 	"terminal_chat/tui/messageStore"
@@ -17,12 +18,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type quitResetMsg struct{}
+
 type Model struct {
 	Width, Height int
 	Screen        models.AppScreen
 	broker        messageStore.Broker
 	chatSub       *messageStore.Subscription
 	presSub       *messageStore.Subscription
+	awaitingQuit  bool
 }
 
 func (m Model) Init() tea.Cmd {
@@ -69,11 +73,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "q" {
-			return m, tea.Quit
+			if m.awaitingQuit {
+				return m, tea.Quit
+			}
+			m.awaitingQuit = true
+			return m, tea.Tick(800*time.Millisecond, func(t time.Time) tea.Msg {
+				return quitResetMsg{}
+			})
 		}
+		m.awaitingQuit = false
 		s, cmd := m.Screen.Update(msg)
 		m.Screen = s
 		return m, cmd
+
+	case quitResetMsg:
+		m.awaitingQuit = false
+		return m, nil
 
 	case models.Message:
 		s, _ := m.Screen.Update(msg)

@@ -23,7 +23,7 @@ func NewRoomListScreen(broker messageStore.Broker, rooms []string) *RoomListScre
 		broker:   broker,
 		TitleBar: components.NewTitleBar("ROOMS"),
 		RoomList: components.NewRoomList(rooms),
-		Footer:   components.NewFooter("UP/DOWN navigate  ·  ENTER select  ·  q quit"),
+Footer: components.NewFooter("UP/DOWN navigate  ·  ENTER select  ·  qq quit"),
 	}
 }
 
