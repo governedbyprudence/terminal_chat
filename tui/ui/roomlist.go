@@ -37,7 +37,7 @@ func (s *RoomListScreen) Render(width, _ int) string {
 	body := title + "\n" + items + "\n" + sep + "\n\n" + footer
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
-	return styles.OuterFrame.Render(wrapper.Render(body))
+	return styles.OuterFrame.Render(wrapper.Render(body)) + "\n"
 }
 
 func (s *RoomListScreen) Update(msg tea.Msg) (states.AppScreen, tea.Cmd) {
