@@ -110,3 +110,37 @@ done:
 		t.Error("should have received some messages")
 	}
 }
+
+func TestBroker_TCPIntegration(t *testing.T) {
+	server := New()
+	addr := "127.0.0.1:0"
+	if err := server.StartServer(addr); err != nil {
+		t.Fatal(err)
+	}
+
+	listenerAddr := server.(*broker).listener.Addr().String()
+	t.Logf("server listening on %s", listenerAddr)
+
+	client := New()
+	if err := client.Connect(listenerAddr); err != nil {
+		server.StopServer()
+		t.Fatal(err)
+	}
+
+	sub := client.Subscribe(ChannelChat)
+	defer sub.Close()
+	defer client.Disconnect()
+	defer server.StopServer()
+
+	// Client publishes over TCP → server broadcasts back to connected clients
+	client.Publish(ChannelChat, "tcp integration works")
+
+	select {
+	case msg := <-sub.Channel():
+		if msg != "tcp integration works" {
+			t.Errorf("expected 'tcp integration works', got %q", msg)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for TCP-delivered message")
+	}
+}

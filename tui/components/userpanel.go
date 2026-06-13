@@ -18,10 +18,9 @@ var userPanelStyle = lipgloss.NewStyle().
 	Padding(0, 1)
 
 const (
-	RightPanelWidth      = 22
-	PanelGap             = 2
-	userPanelInnerAdjust = 5
-	userPanelBorderAdj   = 3
+	RightPanelWidth    = 22
+	PanelGap           = 2
+	userPanelBorderAdj = 3
 )
 
 type UserPanel struct {

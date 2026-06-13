@@ -4,18 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
-
-var roomMenuItem = lipgloss.NewStyle().
-	Foreground(Text).
-	Padding(0, 2)
-
-var roomSelectedMenuItem = lipgloss.NewStyle().
-	Background(Accent).
-	Foreground(DeepBg).
-	Bold(true).
-	Padding(0, 2)
 
 type RoomList struct {
 	Rooms        []string
@@ -30,9 +19,9 @@ func (r *RoomList) Render(_ int) string {
 	var b strings.Builder
 	for i, room := range r.Rooms {
 		if i == r.SelectedRoom {
-			b.WriteString(roomSelectedMenuItem.Render("  > " + room))
+			b.WriteString(SelectedMenuItem.Render("  > " + room))
 		} else {
-			b.WriteString(roomMenuItem.Render("    " + room))
+			b.WriteString(MenuItem.Render("    " + room))
 		}
 		b.WriteString("\n")
 	}

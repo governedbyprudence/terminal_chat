@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
+	"terminal_chat/tui/components"
 	"terminal_chat/tui/messageStore"
 	"terminal_chat/tui/models"
 	"terminal_chat/tui/ui"
-
-	"terminal_chat/tui/components"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -105,28 +105,25 @@ func (m Model) View() string {
 	return m.Screen.Render(m.Width, h)
 }
 
-func newModel(broker messageStore.Broker) Model {
+func newModel(broker messageStore.Broker, rooms []string) Model {
 	return Model{
 		broker:  broker,
 		chatSub: broker.Subscribe(messageStore.ChannelChat),
 		presSub: broker.Subscribe(messageStore.ChannelPresence),
-		Screen:  ui.NewRoomListScreen(broker, []string{"Room 1", "Room 2", "Room 3"}),
-	}
-}
-
-func runLocal(broker messageStore.Broker) {
-	initModel := newModel(broker)
-	p := tea.NewProgram(initModel, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("There's been an error: %v", err)
-		os.Exit(1)
+		Screen:  ui.NewRoomListScreen(broker, rooms),
 	}
 }
 
 func main() {
 	serverAddr := flag.String("server", "", "Start TCP server on given address (e.g. :9000)")
 	connectAddr := flag.String("connect", "", "Connect to TCP server (e.g. localhost:9000)")
+	roomsFlag := flag.String("rooms", "Room 1,Room 2,Room 3", "Comma-separated room names")
 	flag.Parse()
+
+	rooms := strings.Split(*roomsFlag, ",")
+	for i := range rooms {
+		rooms[i] = strings.TrimSpace(rooms[i])
+	}
 
 	broker := messageStore.New()
 
@@ -146,5 +143,10 @@ func main() {
 		fmt.Println("Connected to TCP server at", *connectAddr)
 	}
 
-	runLocal(broker)
+	initModel := newModel(broker, rooms)
+	p := tea.NewProgram(initModel, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("There's been an error: %v", err)
+		os.Exit(1)
+	}
 }

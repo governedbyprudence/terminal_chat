@@ -2,6 +2,7 @@ package messageStore
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"log"
 	"net"
@@ -38,6 +39,7 @@ type Broker interface {
 	Subscribe(channel string) *Subscription
 	Publish(channel, payload string)
 	Connect(addr string) error
+	Disconnect()
 	StartServer(addr string) error
 	StopServer()
 }
@@ -52,6 +54,8 @@ type broker struct {
 	mu            sync.RWMutex
 	conn          net.Conn
 	writer        *bufio.Writer
+	ctx           context.Context
+	cancel        context.CancelFunc
 	listener      net.Listener
 	serverClients map[net.Conn]*bufio.Writer
 	serverMu      sync.RWMutex
@@ -83,49 +87,68 @@ func (b *broker) deliverLocal(channel string, payload string) {
 	}
 }
 
-func (b *broker) Publish(channel string, payload string) {
+func (b *broker) publishTCP(channel string, payload string) bool {
 	b.mu.Lock()
-	if b.writer != nil {
-		msg := wireMsg{Channel: channel, Payload: payload}
-		data, err := json.Marshal(msg)
-		if err != nil {
-			b.mu.Unlock()
-			log.Printf("json.Marshal error: %v", err)
-			return
-		}
-		_, err = b.writer.WriteString(string(data) + "\n")
-		if err != nil {
-			b.mu.Unlock()
-			log.Printf("write error: %v", err)
-			return
-		}
-		b.writer.Flush()
-		b.mu.Unlock()
-		return
+	defer b.mu.Unlock()
+	if b.writer == nil {
+		return false
 	}
-	b.mu.Unlock()
-	b.deliverLocal(channel, payload)
+	msg := wireMsg{Channel: channel, Payload: payload}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("json.Marshal error: %v", err)
+		return true
+	}
+	if _, err := b.writer.WriteString(string(data) + "\n"); err != nil {
+		log.Printf("write error: %v", err)
+		return true
+	}
+	b.writer.Flush()
+	return true
 }
 
-func (b *broker) readLoop(reader *bufio.Reader) {
+func (b *broker) Publish(channel string, payload string) {
+	if !b.publishTCP(channel, payload) {
+		b.deliverLocal(channel, payload)
+	}
+}
+
+func (b *broker) readLoop(ctx context.Context, reader *bufio.Reader) {
+	cleanup := func() {
+		b.mu.Lock()
+		if b.conn != nil {
+			b.conn.Close()
+			b.conn = nil
+			b.writer = nil
+		}
+		b.mu.Unlock()
+	}
+	defer cleanup()
+
+	go func() {
+		<-ctx.Done()
+		b.mu.Lock()
+		if b.conn != nil {
+			b.conn.Close()
+			b.conn = nil
+			b.writer = nil
+		}
+		b.mu.Unlock()
+	}()
+
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			break
+			log.Printf("readLoop read error: %v", err)
+			return
 		}
 		var msg wireMsg
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			log.Printf("readLoop unmarshal error: %v", err)
 			continue
 		}
 		b.deliverLocal(msg.Channel, msg.Payload)
 	}
-	b.mu.Lock()
-	if b.conn != nil {
-		b.conn.Close()
-		b.conn = nil
-		b.writer = nil
-	}
-	b.mu.Unlock()
 }
 
 func (b *broker) Connect(addr string) error {
@@ -133,11 +156,14 @@ func (b *broker) Connect(addr string) error {
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	b.mu.Lock()
 	b.conn = conn
 	b.writer = bufio.NewWriter(conn)
+	b.ctx = ctx
+	b.cancel = cancel
 	b.mu.Unlock()
-	go b.readLoop(bufio.NewReader(conn))
+	go b.readLoop(ctx, bufio.NewReader(conn))
 	return nil
 }
 
@@ -161,6 +187,15 @@ func (b *broker) StartServer(addr string) error {
 	return nil
 }
 
+func (b *broker) Disconnect() {
+	b.mu.Lock()
+	cancel := b.cancel
+	b.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
 func (b *broker) StopServer() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -180,6 +215,7 @@ func (b *broker) handleServerClient(conn net.Conn) {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
+			log.Printf("server read error: %v", err)
 			break
 		}
 		b.serverMu.RLock()
@@ -191,6 +227,7 @@ func (b *broker) handleServerClient(conn net.Conn) {
 
 		for _, w := range clients {
 			if _, err := w.WriteString(line); err != nil {
+				log.Printf("server write error: %v", err)
 				continue
 			}
 			w.Flush()

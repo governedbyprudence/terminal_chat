@@ -17,6 +17,12 @@ A terminal-based chat application with a modern TUI interface supporting multipl
 go run ./tui
 ```
 
+### Custom rooms
+
+```bash
+go run ./tui --rooms "Lobby,Go,Random"
+```
+
 ### Multi-user over TCP
 
 Terminal 1 (server + TUI):
@@ -41,6 +47,6 @@ go run ./tui --connect localhost:9000
 - `tui/main.go` — entry point, program loop, message subscription
 - `tui/messageStore/` — TCP pub/sub broker (also handles local/in-memory mode)
 - `tui/models/` — data models and state management
-- `tui/ui/` — UI components (room list, chat room)
-- `tui/styles/` — lipgloss styling
-- `tui/utils/` — user ID utilities
+- `tui/ui/` — screen implementations (room list, chat room)
+- `tui/components/` — UI widgets and shared lipgloss palette
+- `.github/workflows/go.yml` — CI pipeline

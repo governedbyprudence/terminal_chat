@@ -6,18 +6,7 @@ import (
 	"terminal_chat/tui/models"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
-
-var menuItem = lipgloss.NewStyle().
-	Foreground(Text).
-	Padding(0, 2)
-
-var selectedMenuItem = lipgloss.NewStyle().
-	Background(Accent).
-	Foreground(DeepBg).
-	Bold(true).
-	Padding(0, 2)
 
 type UserList struct {
 	users []string
@@ -57,9 +46,9 @@ func (u *UserList) Render(_ int) string {
 			shortID = shortID[:6]
 		}
 		if user == models.CurrentUserID() {
-			b.WriteString(selectedMenuItem.Render("  " + shortID))
+			b.WriteString(SelectedMenuItem.Render("  " + shortID))
 		} else {
-			b.WriteString(menuItem.Render("  " + shortID))
+			b.WriteString(MenuItem.Render("  " + shortID))
 		}
 		b.WriteString("\n")
 	}
