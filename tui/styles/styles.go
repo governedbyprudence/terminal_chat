@@ -77,6 +77,19 @@ var MessageTimestamp = lipgloss.NewStyle().
 	Foreground(DimText).
 	Italic(true)
 
+// UserPanelTitle — panel header.
+var UserPanelTitle = lipgloss.NewStyle().
+	Background(Accent).
+	Foreground(DeepBg).
+	Bold(true).
+	Padding(0, 1)
+
+// UserPanel — right panel container with left border divider.
+var UserPanel = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder(), false, false, false, true).
+	BorderForeground(Accent).
+	Padding(0, 1)
+
 // EmptyState — dim placeholder.
 var EmptyState = lipgloss.NewStyle().
 	Foreground(DimText).

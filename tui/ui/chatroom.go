@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"log"
+	"strings"
 
 	"terminal_chat/tui/components"
 	"terminal_chat/tui/messageStore"
@@ -14,8 +15,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const rightPanelWidth = 22
+
 type ChatRoomScreen struct {
 	RoomName    string
+	UserList    *components.UserList
 	MessageList *components.MessageList
 	InputBar    *components.InputBar
 	TitleBar    *components.TitleBar
@@ -27,26 +31,58 @@ func NewChatRoomScreen(backRef states.AppScreen, roomName string, messages ...st
 	s := &ChatRoomScreen{
 		RoomName:    roomName,
 		backRef:     backRef,
+		UserList:    components.NewUserList(),
 		MessageList: components.NewMessageList(),
 		InputBar:    components.NewInputBar(""),
 		TitleBar:    components.NewTitleBar(roomName),
 		Footer:      components.NewFooter("ENTER send  ·  ESC back to rooms"),
 	}
+	s.UserList.AddUser(utils.CurrentUserID())
+	s.publishPresence("join")
 	for _, msg := range messages {
 		s.MessageList.AddMessage(msg)
 	}
 	return s
 }
 
+func (s *ChatRoomScreen) publishPresence(action string) {
+	evt := states.PresenceEvent{
+		UserID:   utils.CurrentUserID(),
+		RoomName: s.RoomName,
+		Action:   action,
+	}
+	data, err := json.Marshal(evt)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	messageStore.DefaultBroker().Publish("presence", string(data))
+}
+
 func (s *ChatRoomScreen) Render(width, _ int) string {
 	contentW := width - styles.OuterFrameHSize
+	leftW := contentW - rightPanelWidth
 
-	title := s.TitleBar.Render(contentW)
-	messages := s.MessageList.Render(contentW)
-	input := s.InputBar.Render(contentW)
-	footer := s.Footer.Render(contentW)
+	title := s.TitleBar.Render(leftW)
+	messages := s.MessageList.Render(leftW)
+	input := s.InputBar.Render(leftW)
+	footer := s.Footer.Render(leftW)
 
-	body := title + "\n" + messages + "\n" + input + "\n" + footer
+	leftBody := title + "\n" + messages + "\n" + input + "\n" + footer
+	leftPadded := lipgloss.NewStyle().Width(leftW).Render(leftBody)
+
+	var rightBuilder strings.Builder
+	rightBuilder.WriteString(styles.UserPanelTitle.Render("ONLINE"))
+	if s.UserList.Count() == 0 {
+		rightBuilder.WriteString("\n")
+		rightBuilder.WriteString(styles.EmptyState.Render("nobody here"))
+	} else {
+		rightBuilder.WriteString("\n")
+		rightBuilder.WriteString(s.UserList.Render(rightPanelWidth - 5))
+	}
+	rightPadded := styles.UserPanel.Width(rightPanelWidth-3).Render(rightBuilder.String())
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, rightPadded)
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
 	return styles.OuterFrame.Render(wrapper.Render(body)) + "\n"
@@ -57,6 +93,7 @@ func (s *ChatRoomScreen) Update(msg tea.Msg) (states.AppScreen, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
+			s.publishPresence("leave")
 			return s.backRef, nil
 		case "enter":
 			if s.InputBar.Value() != "" {
@@ -79,7 +116,18 @@ func (s *ChatRoomScreen) Update(msg tea.Msg) (states.AppScreen, tea.Cmd) {
 		}
 	case states.Message:
 		if msg.RoomName == s.RoomName {
+			s.UserList.AddUser(msg.UserID)
 			s.MessageList.AddMessage(msg)
+		}
+		return s, nil
+	case states.PresenceEvent:
+		if msg.RoomName == s.RoomName {
+			switch msg.Action {
+			case "join":
+				s.UserList.AddUser(msg.UserID)
+			case "leave":
+				s.UserList.RemoveUser(msg.UserID)
+			}
 		}
 		return s, nil
 	}

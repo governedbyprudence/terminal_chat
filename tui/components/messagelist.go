@@ -36,6 +36,23 @@ func (m *MessageList) Render(width int) string {
 		return strings.Repeat(" ", width-w) + s
 	}
 
+	fitWidth := func(s string) string {
+		if lipgloss.Width(s) <= width {
+			return s
+		}
+		var b strings.Builder
+		var w int
+		for _, r := range s {
+			rw := lipgloss.Width(string(r))
+			if w+rw > width {
+				break
+			}
+			b.WriteRune(r)
+			w += rw
+		}
+		return b.String()
+	}
+
 	var b strings.Builder
 	for _, msg := range m.Messages {
 		shortID := msg.UserID
@@ -43,15 +60,16 @@ func (m *MessageList) Render(width int) string {
 			shortID = shortID[:6]
 		}
 
+		text := fitWidth(msg.Text)
 		if msg.UserID == utils.CurrentUserID() {
 			meta := styles.MessageTimestamp.Render("you")
-			line := styles.SentMessage.Render(msg.Text)
+			line := styles.SentMessage.Render(text)
 			b.WriteString(meta)
 			b.WriteString("\n")
 			b.WriteString(line)
 			b.WriteString("\n")
 		} else {
-			line := rightPad(styles.ReceivedMessage.Render(msg.Text))
+			line := rightPad(styles.ReceivedMessage.Render(text))
 			sender := rightPad(styles.SenderLabel.Render(shortID))
 			b.WriteString(line)
 			b.WriteString("\n")

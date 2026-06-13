@@ -8,6 +8,12 @@ type Message struct {
 	UserID   string `json:"user_id"`
 }
 
+type PresenceEvent struct {
+	UserID   string `json:"user_id"`
+	RoomName string `json:"room_name"`
+	Action   string `json:"action"` // "join" or "leave"
+}
+
 type AppScreen interface {
 	Render(width, height int) string
 	Update(msg tea.Msg) (AppScreen, tea.Cmd)

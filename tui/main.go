@@ -27,20 +27,36 @@ func (m Model) Init() tea.Cmd {
 		log.Fatal(err)
 	}
 	log.SetOutput(f)
-	return m.listenForMessages()
+	return m.listenForEvents()
 }
 
-func (m Model) listenForMessages() tea.Cmd {
+func (m Model) listenForEvents() tea.Cmd {
 	return func() tea.Msg {
-		sub := messageStore.DefaultBroker().Subscribe("chat")
-		defer sub.Close()
-		for raw := range sub.Channel() {
-			var msg states.Message
-			if err := json.Unmarshal([]byte(raw), &msg); err == nil {
-				return msg
+		chatSub := messageStore.DefaultBroker().Subscribe("chat")
+		defer chatSub.Close()
+		presSub := messageStore.DefaultBroker().Subscribe("presence")
+		defer presSub.Close()
+
+		for {
+			select {
+			case raw, ok := <-chatSub.Channel():
+				if !ok {
+					return nil
+				}
+				var msg states.Message
+				if err := json.Unmarshal([]byte(raw), &msg); err == nil {
+					return msg
+				}
+			case raw, ok := <-presSub.Channel():
+				if !ok {
+					return nil
+				}
+				var evt states.PresenceEvent
+				if err := json.Unmarshal([]byte(raw), &evt); err == nil {
+					return evt
+				}
 			}
 		}
-		return nil
 	}
 }
 
@@ -62,7 +78,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case states.Message:
 		s, _ := m.Screen.Update(msg)
 		m.Screen = s
-		return m, m.listenForMessages()
+		return m, m.listenForEvents()
+
+	case states.PresenceEvent:
+		s, _ := m.Screen.Update(msg)
+		m.Screen = s
+		return m, m.listenForEvents()
 	}
 
 	return m, nil
