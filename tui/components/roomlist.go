@@ -3,10 +3,19 @@ package components
 import (
 	"strings"
 
-	"terminal_chat/tui/styles"
-
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
+
+var roomMenuItem = lipgloss.NewStyle().
+	Foreground(Text).
+	Padding(0, 2)
+
+var roomSelectedMenuItem = lipgloss.NewStyle().
+	Background(Accent).
+	Foreground(DeepBg).
+	Bold(true).
+	Padding(0, 2)
 
 type RoomList struct {
 	Rooms        []string
@@ -21,9 +30,9 @@ func (r *RoomList) Render(_ int) string {
 	var b strings.Builder
 	for i, room := range r.Rooms {
 		if i == r.SelectedRoom {
-			b.WriteString(styles.SelectedMenuItem.Render("  > " + room))
+			b.WriteString(roomSelectedMenuItem.Render("  > " + room))
 		} else {
-			b.WriteString(styles.MenuItem.Render("    " + room))
+			b.WriteString(roomMenuItem.Render("    " + room))
 		}
 		b.WriteString("\n")
 	}
@@ -41,11 +50,12 @@ func (r *RoomList) OnKeyPress(key string) (int, tea.Cmd) {
 			r.SelectedRoom--
 		}
 	case "enter":
-		return 1, nil
+		return RedirectSelect, nil
 	}
-	return 0, nil
+	return RedirectNone, nil
 }
 
-func (r *RoomList) Focus() tea.Cmd { return nil }
-func (r *RoomList) Blur()          {}
-func (r *RoomList) Focused() bool  { return false }
+func (r *RoomList) Update(msg tea.Msg) tea.Cmd { return nil }
+func (r *RoomList) Focus() tea.Cmd             { return nil }
+func (r *RoomList) Blur()                      {}
+func (r *RoomList) Focused() bool              { return false }

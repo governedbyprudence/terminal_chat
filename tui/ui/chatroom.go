@@ -7,37 +7,35 @@ import (
 
 	"terminal_chat/tui/components"
 	"terminal_chat/tui/messageStore"
-	"terminal_chat/tui/models/states"
-	"terminal_chat/tui/styles"
-	"terminal_chat/tui/utils"
+	"terminal_chat/tui/models"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-const rightPanelWidth = 22
-
 type ChatRoomScreen struct {
 	RoomName    string
-	UserList    *components.UserList
 	MessageList *components.MessageList
 	InputBar    *components.InputBar
 	TitleBar    *components.TitleBar
 	Footer      *components.Footer
-	backRef     states.AppScreen
+	UserPanel   *components.UserPanel
+	backRef     models.AppScreen
+	broker      messageStore.Broker
 }
 
-func NewChatRoomScreen(backRef states.AppScreen, roomName string, messages ...states.Message) *ChatRoomScreen {
+func NewChatRoomScreen(broker messageStore.Broker, backRef models.AppScreen, roomName string, messages ...models.Message) *ChatRoomScreen {
 	s := &ChatRoomScreen{
 		RoomName:    roomName,
 		backRef:     backRef,
-		UserList:    components.NewUserList(),
+		broker:      broker,
+		UserPanel:   components.NewUserPanel(),
 		MessageList: components.NewMessageList(),
 		InputBar:    components.NewInputBar(""),
 		TitleBar:    components.NewTitleBar(roomName),
 		Footer:      components.NewFooter("ENTER send  ·  ESC back to rooms"),
 	}
-	s.UserList.AddUser(utils.CurrentUserID())
+	s.UserPanel.UserList.AddUser(models.CurrentUserID())
 	s.publishPresence("join")
 	for _, msg := range messages {
 		s.MessageList.AddMessage(msg)
@@ -46,22 +44,22 @@ func NewChatRoomScreen(backRef states.AppScreen, roomName string, messages ...st
 }
 
 func (s *ChatRoomScreen) publishPresence(action string) {
-	evt := states.PresenceEvent{
-		UserID:   utils.CurrentUserID(),
+	evt := models.PresenceEvent{
+		UserID:   models.CurrentUserID(),
 		RoomName: s.RoomName,
 		Action:   action,
 	}
 	data, err := json.Marshal(evt)
 	if err != nil {
-		log.Println(err)
+		log.Printf("presence marshal error: %v", err)
 		return
 	}
-	messageStore.DefaultBroker().Publish("presence", string(data))
+	s.broker.Publish(messageStore.ChannelPresence, string(data))
 }
 
-func (s *ChatRoomScreen) Render(width, _ int) string {
-	contentW := width - styles.OuterFrameHSize
-	leftW := contentW - rightPanelWidth - 2
+func (s *ChatRoomScreen) Render(width int) string {
+	contentW := width - outerFrameHSize()
+	leftW := contentW - components.RightPanelWidth - components.PanelGap
 
 	title := s.TitleBar.Render(leftW)
 	messages := s.MessageList.Render(leftW)
@@ -71,43 +69,18 @@ func (s *ChatRoomScreen) Render(width, _ int) string {
 	leftBody := title + "\n" + messages + "\n" + input + footer
 	leftPadded := lipgloss.NewStyle().Width(leftW).Render(leftBody)
 
-	leftLines := strings.Count(leftPadded, "\n")
-	if leftPadded != "" && !strings.HasSuffix(leftPadded, "\n") {
-		leftLines++
+	leftHeight := strings.Count(leftPadded, "\n")
+	if !strings.HasSuffix(leftPadded, "\n") {
+		leftHeight++
 	}
 
-	var gapBuilder strings.Builder
-	for i := 0; i < leftLines-1; i++ {
-		gapBuilder.WriteString("  \n")
-	}
-	gapBuilder.WriteString("  ")
-	gap := gapBuilder.String()
-
-	var rightBuilder strings.Builder
-	rightBuilder.WriteString(styles.UserPanelTitle.Render("ONLINE"))
-	rightBuilder.WriteString("\n")
-	if s.UserList.Count() == 0 {
-		rightBuilder.WriteString("nobody here")
-		rightBuilder.WriteString("\n")
-	} else {
-		rightBuilder.WriteString(s.UserList.Render(rightPanelWidth - 5))
-	}
-
-	rightText := strings.TrimSuffix(rightBuilder.String(), "\n")
-	rightLines := strings.Count(rightText, "\n") + 1
-	for i := rightLines; i < leftLines; i++ {
-		rightText += "\n"
-	}
-
-	rightPadded := styles.UserPanel.Width(rightPanelWidth-3).Render(rightText)
-
-	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, gap, rightPadded)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPadded, s.UserPanel.RenderFull(leftHeight))
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
-	return styles.OuterFrame.Render(wrapper.Render(body)) + "\n"
+	return outerFrame.Render(wrapper.Render(body)) + "\n"
 }
 
-func (s *ChatRoomScreen) Update(msg tea.Msg) (states.AppScreen, tea.Cmd) {
+func (s *ChatRoomScreen) Update(msg tea.Msg) (models.AppScreen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -115,37 +88,38 @@ func (s *ChatRoomScreen) Update(msg tea.Msg) (states.AppScreen, tea.Cmd) {
 			s.publishPresence("leave")
 			return s.backRef, nil
 		case "enter":
-			if s.InputBar.Value() != "" {
-				m := states.Message{
+			text := strings.TrimSpace(s.InputBar.Value())
+			if text != "" {
+				m := models.Message{
 					RoomName: s.RoomName,
-					Text:     s.InputBar.Value(),
-					UserID:   utils.CurrentUserID(),
+					Text:     text,
+					UserID:   models.CurrentUserID(),
 				}
 				data, err := json.Marshal(m)
 				if err != nil {
-					log.Println(err)
+					log.Printf("message marshal error: %v", err)
 					return s, nil
 				}
-				messageStore.DefaultBroker().Publish("chat", string(data))
+				s.broker.Publish(messageStore.ChannelChat, string(data))
 				s.InputBar.SetValue("")
 			}
 			return s, nil
 		default:
 			return s, s.InputBar.Update(msg)
 		}
-	case states.Message:
+	case models.Message:
 		if msg.RoomName == s.RoomName {
-			s.UserList.AddUser(msg.UserID)
+			s.UserPanel.UserList.AddUser(msg.UserID)
 			s.MessageList.AddMessage(msg)
 		}
 		return s, nil
-	case states.PresenceEvent:
+	case models.PresenceEvent:
 		if msg.RoomName == s.RoomName {
 			switch msg.Action {
 			case "join":
-				s.UserList.AddUser(msg.UserID)
+				s.UserPanel.UserList.AddUser(msg.UserID)
 			case "leave":
-				s.UserList.RemoveUser(msg.UserID)
+				s.UserPanel.UserList.RemoveUser(msg.UserID)
 			}
 		}
 		return s, nil

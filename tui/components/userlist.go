@@ -3,11 +3,21 @@ package components
 import (
 	"strings"
 
-	"terminal_chat/tui/styles"
-	"terminal_chat/tui/utils"
+	"terminal_chat/tui/models"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
+
+var menuItem = lipgloss.NewStyle().
+	Foreground(Text).
+	Padding(0, 2)
+
+var selectedMenuItem = lipgloss.NewStyle().
+	Background(Accent).
+	Foreground(DeepBg).
+	Bold(true).
+	Padding(0, 2)
 
 type UserList struct {
 	users []string
@@ -46,10 +56,10 @@ func (u *UserList) Render(_ int) string {
 		if len(shortID) > 6 {
 			shortID = shortID[:6]
 		}
-		if user == utils.CurrentUserID() {
-			b.WriteString(styles.SelectedMenuItem.Render("  " + shortID))
+		if user == models.CurrentUserID() {
+			b.WriteString(selectedMenuItem.Render("  " + shortID))
 		} else {
-			b.WriteString(styles.MenuItem.Render("  " + shortID))
+			b.WriteString(menuItem.Render("  " + shortID))
 		}
 		b.WriteString("\n")
 	}
@@ -57,6 +67,7 @@ func (u *UserList) Render(_ int) string {
 }
 
 func (u *UserList) OnKeyPress(key string) (int, tea.Cmd) { return 0, nil }
-func (u *UserList) Focus() tea.Cmd                       { return nil }
-func (u *UserList) Blur()                                {}
-func (u *UserList) Focused() bool                        { return false }
+func (u *UserList) Update(msg tea.Msg) tea.Cmd           { return nil }
+func (u *UserList) Focus() tea.Cmd                        { return nil }
+func (u *UserList) Blur()                                 {}
+func (u *UserList) Focused() bool                         { return false }

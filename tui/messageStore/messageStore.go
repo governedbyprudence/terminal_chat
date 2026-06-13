@@ -3,19 +3,23 @@ package messageStore
 import (
 	"bufio"
 	"encoding/json"
+	"log"
 	"net"
 	"sync"
 )
 
+const (
+	ChannelChat     = "chat"
+	ChannelPresence = "presence"
+)
+
 type Subscription struct {
 	ch      chan string
-	broker  *Broker
+	broker  *broker
 	channel string
 }
 
-func (s *Subscription) Channel() chan string {
-	return s.ch
-}
+func (s *Subscription) Channel() chan string { return s.ch }
 
 func (s *Subscription) Close() {
 	s.broker.mu.Lock()
@@ -30,33 +34,37 @@ func (s *Subscription) Close() {
 	}
 }
 
+type Broker interface {
+	Subscribe(channel string) *Subscription
+	Publish(channel, payload string)
+	Connect(addr string) error
+	StartServer(addr string) error
+	StopServer()
+}
+
 type wireMsg struct {
-	Channel string `json:"c"`
-	Payload string `json:"p"`
+	Channel string `json:"channel"`
+	Payload string `json:"payload"`
 }
 
-type Broker struct {
-	subscribers map[string][]chan string
-	mu          sync.RWMutex
-	conn        net.Conn
-	writer      *bufio.Writer
+type broker struct {
+	subscribers   map[string][]chan string
+	mu            sync.RWMutex
+	conn          net.Conn
+	writer        *bufio.Writer
+	listener      net.Listener
+	serverClients map[net.Conn]*bufio.Writer
+	serverMu      sync.RWMutex
 }
 
-var (
-	globalBroker *Broker
-	once         sync.Once
-)
-
-func DefaultBroker() *Broker {
-	once.Do(func() {
-		globalBroker = &Broker{
-			subscribers: make(map[string][]chan string),
-		}
-	})
-	return globalBroker
+func New() Broker {
+	return &broker{
+		subscribers:   make(map[string][]chan string),
+		serverClients: make(map[net.Conn]*bufio.Writer),
+	}
 }
 
-func (b *Broker) Subscribe(channel string) *Subscription {
+func (b *broker) Subscribe(channel string) *Subscription {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	ch := make(chan string, 100)
@@ -64,7 +72,7 @@ func (b *Broker) Subscribe(channel string) *Subscription {
 	return &Subscription{ch: ch, broker: b, channel: channel}
 }
 
-func (b *Broker) deliverLocal(channel string, payload string) {
+func (b *broker) deliverLocal(channel string, payload string) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	for _, ch := range b.subscribers[channel] {
@@ -75,24 +83,31 @@ func (b *Broker) deliverLocal(channel string, payload string) {
 	}
 }
 
-func (b *Broker) Publish(channel string, payload string) {
-	b.mu.RLock()
-	writer := b.writer
-	b.mu.RUnlock()
-	if writer != nil {
+func (b *broker) Publish(channel string, payload string) {
+	b.mu.Lock()
+	if b.writer != nil {
 		msg := wireMsg{Channel: channel, Payload: payload}
-		data, _ := json.Marshal(msg)
-		_, err := writer.WriteString(string(data) + "\n")
+		data, err := json.Marshal(msg)
 		if err != nil {
+			b.mu.Unlock()
+			log.Printf("json.Marshal error: %v", err)
 			return
 		}
-		writer.Flush()
+		_, err = b.writer.WriteString(string(data) + "\n")
+		if err != nil {
+			b.mu.Unlock()
+			log.Printf("write error: %v", err)
+			return
+		}
+		b.writer.Flush()
+		b.mu.Unlock()
 		return
 	}
+	b.mu.Unlock()
 	b.deliverLocal(channel, payload)
 }
 
-func (b *Broker) readLoop(reader *bufio.Reader) {
+func (b *broker) readLoop(reader *bufio.Reader) {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -113,7 +128,7 @@ func (b *Broker) readLoop(reader *bufio.Reader) {
 	b.mu.Unlock()
 }
 
-func (b *Broker) Connect(addr string) error {
+func (b *broker) Connect(addr string) error {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return err
@@ -126,33 +141,40 @@ func (b *Broker) Connect(addr string) error {
 	return nil
 }
 
-var (
-	serverClients   = make(map[net.Conn]*bufio.Writer)
-	serverClientsMu sync.RWMutex
-)
-
-func StartServer(addr string) error {
+func (b *broker) StartServer(addr string) error {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
+	b.mu.Lock()
+	b.listener = listener
+	b.mu.Unlock()
 	go func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				continue
+				return
 			}
-			go handleServerClient(conn)
+			go b.handleServerClient(conn)
 		}
 	}()
 	return nil
 }
 
-func handleServerClient(conn net.Conn) {
+func (b *broker) StopServer() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.listener != nil {
+		b.listener.Close()
+		b.listener = nil
+	}
+}
+
+func (b *broker) handleServerClient(conn net.Conn) {
 	writer := bufio.NewWriter(conn)
-	serverClientsMu.Lock()
-	serverClients[conn] = writer
-	serverClientsMu.Unlock()
+	b.serverMu.Lock()
+	b.serverClients[conn] = writer
+	b.serverMu.Unlock()
 
 	reader := bufio.NewReader(conn)
 	for {
@@ -160,18 +182,23 @@ func handleServerClient(conn net.Conn) {
 		if err != nil {
 			break
 		}
-		serverClientsMu.RLock()
-		for _, w := range serverClients {
+		b.serverMu.RLock()
+		clients := make([]*bufio.Writer, 0, len(b.serverClients))
+		for _, w := range b.serverClients {
+			clients = append(clients, w)
+		}
+		b.serverMu.RUnlock()
+
+		for _, w := range clients {
 			if _, err := w.WriteString(line); err != nil {
 				continue
 			}
 			w.Flush()
 		}
-		serverClientsMu.RUnlock()
 	}
 
-	serverClientsMu.Lock()
-	delete(serverClients, conn)
-	serverClientsMu.Unlock()
+	b.serverMu.Lock()
+	delete(b.serverClients, conn)
+	b.serverMu.Unlock()
 	conn.Close()
 }

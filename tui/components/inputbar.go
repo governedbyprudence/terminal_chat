@@ -1,28 +1,50 @@
 package components
 
 import (
-	"terminal_chat/tui/styles"
-
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
+
+var textInputStyle = lipgloss.NewStyle().Foreground(Text)
+
+var inputWrapper = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder(), true, false, true, false).
+	BorderForeground(Accent).
+	Padding(0, 2)
+
+var inputPrompt = lipgloss.NewStyle().
+	Foreground(Accent).
+	Bold(true)
+
+func newTextInput() textinput.Model {
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.Focus()
+	ti.TextStyle = textInputStyle
+	return ti
+}
+
+// textInputWidthFix compensates for bubbles textinput Width+1 bug
+// plus prompt (2 chars) + wrapper border/padding (4 chars) = 7
+const textInputWidthFix = 7
 
 type InputBar struct {
 	Model textinput.Model
 }
 
 func NewInputBar(placeholder string) *InputBar {
-	ti := styles.NewTextInput(false)
+	ti := newTextInput()
 	ti.Placeholder = placeholder
 	return &InputBar{Model: ti}
 }
 
 func (b *InputBar) Render(width int) string {
 	b.Model.Focus()
-	b.Model.Width = width - 7
+	b.Model.Width = width - textInputWidthFix
 
-	return styles.InputWrapper.Render(
-		styles.InputPrompt.Render("> ") + b.Model.View(),
+	return inputWrapper.Render(
+		inputPrompt.Render("> ") + b.Model.View(),
 	)
 }
 

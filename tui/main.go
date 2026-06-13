@@ -8,16 +8,21 @@ import (
 	"os"
 
 	"terminal_chat/tui/messageStore"
-	"terminal_chat/tui/models/states"
-	"terminal_chat/tui/styles"
+	"terminal_chat/tui/models"
 	"terminal_chat/tui/ui"
+
+	"terminal_chat/tui/components"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
 type Model struct {
 	Width, Height int
-	Screen        states.AppScreen
+	Screen        models.AppScreen
+	broker        messageStore.Broker
+	chatSub       *messageStore.Subscription
+	presSub       *messageStore.Subscription
 }
 
 func (m Model) Init() tea.Cmd {
@@ -32,30 +37,25 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) listenForEvents() tea.Cmd {
 	return func() tea.Msg {
-		chatSub := messageStore.DefaultBroker().Subscribe("chat")
-		defer chatSub.Close()
-		presSub := messageStore.DefaultBroker().Subscribe("presence")
-		defer presSub.Close()
-
-		for {
-			select {
-			case raw, ok := <-chatSub.Channel():
-				if !ok {
-					return nil
-				}
-				var msg states.Message
-				if err := json.Unmarshal([]byte(raw), &msg); err == nil {
-					return msg
-				}
-			case raw, ok := <-presSub.Channel():
-				if !ok {
-					return nil
-				}
-				var evt states.PresenceEvent
-				if err := json.Unmarshal([]byte(raw), &evt); err == nil {
-					return evt
-				}
+		select {
+		case raw, ok := <-m.chatSub.Channel():
+			if !ok {
+				return nil
 			}
+			var msg models.Message
+			if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+				return m.listenForEvents()
+			}
+			return msg
+		case raw, ok := <-m.presSub.Channel():
+			if !ok {
+				return nil
+			}
+			var evt models.PresenceEvent
+			if err := json.Unmarshal([]byte(raw), &evt); err != nil {
+				return m.listenForEvents()
+			}
+			return evt
 		}
 	}
 }
@@ -75,12 +75,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Screen = s
 		return m, cmd
 
-	case states.Message:
+	case models.Message:
 		s, _ := m.Screen.Update(msg)
 		m.Screen = s
 		return m, m.listenForEvents()
 
-	case states.PresenceEvent:
+	case models.PresenceEvent:
 		s, _ := m.Screen.Update(msg)
 		m.Screen = s
 		return m, m.listenForEvents()
@@ -93,22 +93,25 @@ func (m Model) View() string {
 	minW := 50
 	if m.Width < minW {
 		return lipgloss.NewStyle().
-			Foreground(styles.Accent).
+			Foreground(components.Accent).
 			Bold(true).
 			Padding(2, 2).
 			Render(fmt.Sprintf("Terminal too narrow (%d cols).\nMinimum width: %d columns.", m.Width, minW))
 	}
-	return m.Screen.Render(m.Width, m.Height)
+	return m.Screen.Render(m.Width)
 }
 
-func newModel() Model {
+func newModel(broker messageStore.Broker) Model {
 	return Model{
-		Screen: ui.NewRoomListScreen([]string{"Room 1", "Room 2", "Room 3"}),
+		broker:  broker,
+		chatSub: broker.Subscribe(messageStore.ChannelChat),
+		presSub: broker.Subscribe(messageStore.ChannelPresence),
+		Screen:  ui.NewRoomListScreen(broker, []string{"Room 1", "Room 2", "Room 3"}),
 	}
 }
 
-func runLocal() {
-	initModel := newModel()
+func runLocal(broker messageStore.Broker) {
+	initModel := newModel(broker)
 	p := tea.NewProgram(initModel, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("There's been an error: %v", err)
@@ -121,21 +124,23 @@ func main() {
 	connectAddr := flag.String("connect", "", "Connect to TCP server (e.g. localhost:9000)")
 	flag.Parse()
 
+	broker := messageStore.New()
+
 	if *serverAddr != "" {
-		if err := messageStore.StartServer(*serverAddr); err != nil {
+		if err := broker.StartServer(*serverAddr); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("TCP server started on", *serverAddr)
-		if err := messageStore.DefaultBroker().Connect(*serverAddr); err != nil {
+		if err := broker.Connect(*serverAddr); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("Connected to local TCP server")
 	} else if *connectAddr != "" {
-		if err := messageStore.DefaultBroker().Connect(*connectAddr); err != nil {
+		if err := broker.Connect(*connectAddr); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("Connected to TCP server at", *connectAddr)
 	}
 
-	runLocal()
+	runLocal(broker)
 }
