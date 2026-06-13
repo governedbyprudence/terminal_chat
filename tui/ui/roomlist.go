@@ -12,6 +12,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var roomSeparator = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder(), false, false, true, false).
+	BorderForeground(components.Accent)
+
 type RoomListScreen struct {
 	TitleBar *components.TitleBar
 	RoomList *components.RoomList
@@ -30,13 +34,21 @@ func NewRoomListScreen(broker messageStore.Broker, rooms []string) *RoomListScre
 
 func (s *RoomListScreen) Render(width, height int) string {
 	contentW := width - outerFrameHSize()
+	contentH := height - outerFrameVSize()
 
 	title := s.TitleBar.Render(contentW)
 	items := s.RoomList.Render(contentW)
-	sep := strings.Repeat("─", contentW-4)
+	sep := roomSeparator.Width(contentW).Render("")
 	footer := s.Footer.Render(contentW)
 
 	body := title + "\n" + items + "\n" + sep + "\n" + footer
+
+	bodyLines := strings.Count(body, "\n") + 1
+	if bodyLines < contentH {
+		body += strings.Repeat("\n", contentH-bodyLines)
+	} else if bodyLines > contentH {
+		body = strings.Join(strings.Split(body, "\n")[bodyLines-contentH:], "\n")
+	}
 
 	wrapper := lipgloss.NewStyle().Width(contentW)
 	return outerFrame.Render(wrapper.Render(body))
