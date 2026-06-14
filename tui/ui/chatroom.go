@@ -13,6 +13,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var extStyle = lipgloss.NewStyle().Foreground(components.Accent)
+
 type ChatRoomScreen struct {
 	Rooms         []string
 	ActiveRoomIdx int
@@ -24,6 +26,7 @@ type ChatRoomScreen struct {
 	usersPerRoom  map[string]map[string]bool
 	backRef       models.AppScreen
 	broker        messageStore.Broker
+	msgHeight     int
 }
 
 func NewChatRoomScreen(broker messageStore.Broker, backRef models.AppScreen, rooms []string, activeIdx int, messages ...models.Message) *ChatRoomScreen {
@@ -47,7 +50,7 @@ func NewChatRoomScreen(broker messageStore.Broker, backRef models.AppScreen, roo
 		broker:        broker,
 		UserPanel:     components.NewUserPanel(),
 		InputBar:      components.NewInputBar(""),
-Footer: components.NewFooter("ENTER send  ·  TAB/←→ rooms  ·  PgUp/PgDn scroll  ·  ESC back  ·  qq quit"),
+Footer: components.NewFooter("ENTER send  ·  ↑/↓ line  ·  PgUp/PgDn scroll  ·  TAB/←→ rooms  ·  qq quit"),
 		RoomTabs:      components.NewRoomTabs(rooms),
 		messageLists:  messageLists,
 		usersPerRoom:  usersPerRoom,
@@ -129,10 +132,11 @@ func (s *ChatRoomScreen) Render(width, height int) string {
 	sep := sepLine(contentW)
 
 	belowSepH := contentH - 2
-	msgHeight := belowSepH - 4
-	if msgHeight < 2 {
-		msgHeight = 2
+	s.msgHeight = belowSepH - 4
+	if s.msgHeight < 2 {
+		s.msgHeight = 2
 	}
+	msgHeight := s.msgHeight
 	ml := s.activeMessageList()
 	var messages string
 	if ml != nil {
@@ -155,7 +159,12 @@ func (s *ChatRoomScreen) Render(width, height int) string {
 			trackCol.WriteString(tl)
 		}
 		for i := msgHeight; i < belowSepH; i++ {
-			trackCol.WriteString("\n  ")
+			trackCol.WriteString("\n")
+			if i == msgHeight || i == msgHeight+2 {
+				trackCol.WriteString(extStyle.Render("──"))
+			} else {
+				trackCol.WriteString("  ")
+			}
 		}
 	} else {
 		for i := 0; i < belowSepH; i++ {
@@ -218,12 +227,22 @@ func (s *ChatRoomScreen) Update(msg tea.Msg) (models.AppScreen, tea.Cmd) {
 			return s, nil
 		case "pgup":
 			if ml := s.activeMessageList(); ml != nil {
-				ml.ScrollUp(5)
+				ml.ScrollUp(3)
 			}
 			return s, nil
 		case "pgdown":
 			if ml := s.activeMessageList(); ml != nil {
-				ml.ScrollDown(5)
+				ml.ScrollDown(3)
+			}
+			return s, nil
+		case "up":
+			if ml := s.activeMessageList(); ml != nil {
+				ml.ScrollUp(1)
+			}
+			return s, nil
+		case "down":
+			if ml := s.activeMessageList(); ml != nil {
+				ml.ScrollDown(1)
 			}
 			return s, nil
 		case "left":
