@@ -1,10 +1,10 @@
-# Code Structure & Improvement Plan
+# Code Structure
 
 ## Overview
 
-Terminal Chat is a Go 1.24 TUI chat application using [Bubble Tea](https://github.com/charmbracelet/bubbletea) v1.3.6, [Lip Gloss](https://github.com/charmbracelet/lipgloss) v1.1.0, and [Bubbles](https://github.com/charmbracelet/bubbles) v0.21.0. It supports single-user (in-memory pub/sub) and multi-user (TCP broker) modes across multiple chat rooms.
+Terminal Chat is a Go 1.24 TUI chat application using [Bubble Tea](https://github.com/charmbracelet/bubbletea) v1.3.6, [Lip Gloss](https://github.com/charmbracelet/lipgloss) v1.1.0, and [Bubbles](https://github.com/charmbracelet/bubbles) v0.21.0. Supports single-user (in-memory pub/sub) and multi-user (TCP broker) modes across multiple chat rooms.
 
-**Source:** ~1,400 Go LOC across 15 `.go` files in 5 packages (`main`, `ui`, `components`, `messageStore`, `models`).
+**Source:** ~2,000 Go LOC across 19 `.go` files (+3 `_test.go`) in 5 packages (`main`, `ui`, `components`, `messageStore`, `models`).
 
 ---
 
@@ -27,109 +27,67 @@ main ──→ ui ──→ components ──→ models
 
 | Package | Content | Notes |
 |---------|---------|-------|
-| `models` | `Message`, `PresenceEvent`, `AppScreen` interface, `CurrentUserID()` | Types + user ID generation. Pure types + one helper. |
-| `messageStore` | `Broker` interface + unexported `broker` implementation (in-memory pub/sub, TCP server/client) | Exports clean interface, hides transport details. Channel names are typed constants. |
-| `components` | All UI widgets (`InputBar`, `MessageList`, `RoomList`, `UserList`, `TitleBar`, `Footer`) + `UserPanel` composite + `Component` interface + shared palette | Each component file owns its lipgloss styles inline. Palette colors in `palette.go`. `UserPanel` encapsulates the right sidebar (header, user list, visual gap, vertical stretch). |
-| `ui` | Screen implementations (`RoomListScreen`, `ChatRoomScreen`) + `layout.go` (shared outer frame style) | Screens receive `Broker` via dependency injection. No global state calls. |
-| `main` | Entry point, Bubble Tea `Model`, subscription lifecycle | Subscriptions created once in `newModel()`, long-lived. |
+| `models` | `Message`, `PresenceEvent`, `AppScreen` interface, `CurrentUserID()` | Types + user ID generation. |
+| `messageStore` | `Broker` interface + unexported `broker` (in-memory pub/sub, TCP server/client) | Interface hides transport. Channel names are typed constants. TCP server/client support for multi-user mode. 6 tests. |
+| `components` | All UI widgets (`InputBar`, `MessageList`, `RoomList`, `RoomTabs`, `UserList`, `TitleBar`, `Footer`, `UserPanel`) + `Component` interface + shared palette | Widgets own inline styles; shared menu styles in `palette.go`. `MessageList` exposes `ScrollTrack()` for the scroll indicator column. 11 tests. |
+| `ui` | `ChatRoomScreen` + `layout.go` (shared outer frame + `sepLine`) | Single-page app. `ChatRoomScreen` receives `Broker` via dependency injection. Body height clamped to prevent overflow. 10 tests. |
+| `main` | Entry point, Bubble Tea `Model`, `qq` quit handler | Subscriptions created once in `newModel()`, long-lived. `awaitingQuit bool` + `quitResetMsg` for double-tap quit (800ms window). |
 
 ---
 
 ## 2. Architecture
 
 ```
-                    main.go
-                     Model
-                    /      \
-           messageStore    ui/ (screens)
-               Broker     ┌──RoomListScreen
-            ─────────     └──ChatRoomScreen
-            broker                |
-                         components/
-                         ┌──────────────┐
-                         │   Palette    │── shared 5-color palette
-                         ├──────────────┤
-                         │  Component   │── interface (Render, OnKeyPress, Update, Focus/Blur/Focused)
-                         ├──────────────┤
-                         │  TitleBar    │
-                         │  Footer      │
-                         │  InputBar    │
-                         │  MessageList │
-                         │  RoomList    │
-                         │  UserList    │
-                         │  UserPanel   │── composite wrapping UserList
-                         └──────────────┘
+                     main.go
+                      Model
+                     /      \
+            messageStore    ui/ (screens)
+                Broker     └──ChatRoomScreen (single-page)
+             ─────────                  |
+               broker          components/
+                             ┌──────────────────┐
+                             │   Palette        │── shared colors + styles
+                             ├──────────────────┤
+                             │  Component       │── interface
+                             ├──────────────────┤
+                             │  TitleBar        │
+                             │  Footer          │
+                             │  InputBar        │
+                             │  MessageList     │
+                             │  RoomList        │
+                             │  RoomTabs        │── tab bar (neo-brutalist)
+                             │  UserList        │
+                             │  UserPanel       │── composite wrapping UserList
+                             └──────────────────┘
 ```
 
 ### Key Design Decisions
 
-- **Self-contained components**: Each component owns its lipgloss styles inline. The 5-color palette in `components/palette.go` is the only shared style dependency. No separate `styles/` package.
-- **`UserPanel` composite**: Encapsulates the entire right sidebar — header ("ONLINE"), user list, visual gap separator, and vertical padding to match left panel height. Screens no longer do inline layout arithmetic.
-- **`Component` interface**: Consistent API across all widgets (`Render`, `OnKeyPress`, `Update`, `Focus`/`Blur`/`Focused`). `InputBar.Update` is now part of the interface rather than a standalone method.
-- **`ui/layout.go`**: Shared `outerFrame` style (rounded border with accent) used by both screens, avoiding duplication. `outerFrameVSize()` returns 2 (top + bottom border lines), `outerFrameHSize()` returns 4 (left + right border columns).
-- **Fixed-height layout mechanics**: `ChatRoomScreen.Render(width, height)` partitions the terminal into a body of exactly `contentH = height - 2` lines. Body content is split: `msgHeight = contentH - 5` lines for the message list (which uses bottom-aligned padding internally), 1 title line, 1 blank separator, 3 input bar lines, and 1 footer line. The outer frame wraps the body to exactly `height` lines — no trailing newlines, no overflow. Past off-by-one bugs from trailing `\n` in rendered strings and word-wrapping of concatenated footer content have been fixed via `strings.TrimRight` and proper line separation.
-- **Broker interface** in `messageStore` (with methods `Subscribe`, `Publish`, `Connect`, `StartServer`, `StopServer`) — concrete `broker` struct is unexported, constructed via `New()`.
-- **Dependency injection**: Broker is created in `main()`, passed through `newModel()` → `RoomListScreen` → `ChatRoomScreen`.
-- **Long-lived subscriptions**: Created once in `newModel()`, stored on `Model` as `*Subscription` pointers. Value-receiver copies share the same underlying subscriptions.
-- **Channel name constants**: `messageStore.ChannelChat = "chat"`, `messageStore.ChannelPresence = "presence"`.
-- **Self-documenting wire protocol**: `wireMsg` uses `json:"channel"` and `json:"payload"`.
+- **Component styles**: Unique widget styles defined inline per file; shared menu styles (`MenuItem`, `SelectedMenuItem`) consolidated in `palette.go` alongside the 5-color palette.
+- **`RoomTabs` component**: Horizontal tab bar rendered with `lipgloss.JoinHorizontal`. Active tab gets `Accent` background + `DeepBg` text + bold. Inactive tabs get `Text` foreground. Room names truncate with `…` if they overflow the available width. Supports `SelectNext()`, `SelectPrev()`, `SelectIndex(i)`.
+- **`ChatRoomScreen` owns all rooms**: The screen holds a `Rooms []string` slice and per-room state maps: `messageLists map[string]*MessageList` (each room keeps its own scroll position) and `usersPerRoom map[string]map[string]bool` (per-room user presence sets). Tab switching (`←`/`→`/`tab`/`shift+tab`) publishes presence leave/join events.
+- **`UserPanel` composite**: Encapsulates the right sidebar — "ONLINE" header, user list, and vertical fill. Repopulated on tab switch via `syncUserPanel()`.
+- **Single-page app**: `ChatRoomScreen` is the only screen. The tab bar IS the navigation. ESC is a no-op (no back reference).
+- **Fixed-height layout**: `ChatRoomScreen.Render(width, height)` partitions the terminal into `contentH = height - 2` lines. Layout: tabs (1) + separator (1) + combined left/right panel (`belowSepH = contentH - 2`). The left panel (contentW - RightPanelWidth - PanelGap) contains messages + input bar (3) + footer (1). A 2-char scroll track column sits between the left panel and the right user panel, inserted via `JoinHorizontal`. Combined lines are padded per-line to `contentW` (bypasses lipgloss wrapper bug with multi-line ANSI content). A body-height clamp prevents overflow on very small terminals.
+- **Scroll track indicator**: When messages overflow the viewport, a neo-brutalist scroll indicator appears as a 2-char column to the left of the user panel divider. Uses `░░` (light shade) for the track bed and `██` (full block) for the thumb. Exposed via `MessageList.ScrollTrack(maxHeight) → []string` — proportional thumb position calculated from `scrollOffset / maxOffset`. Built in `ChatRoomScreen.Render` by calling `ScrollTrack(msgHeight)`, padding to `belowSepH` height, and joining between left content and user panel. `msgHeight` is cached on the screen struct for use in `Update`.
+- **Input bar border alignment**: The input bar's top/bottom borders (`inputWrapper` with `Accent`-colored `─`) are extended 2 chars to the right using `extStyle.Render("──")` in the scroll track column, so the border aligns with the scrollbar column's right edge.
+- **Scroll key bindings**: `↑`/`↓` scrolls one message at a time. `PgUp`/`PgDn` scrolls by a fixed 3 messages. `ChatRoomScreen.Update` intercepts these before the default handler (which forwards to `InputBar`).
+- **`qq` double-tap quit**: Single `q` is intercepted and sets `awaitingQuit = true` with an 800ms reset timer via `tea.Tick`. A second `q` before the timer fires sends `tea.Quit`. Any other key or timer expiry resets the flag. Prevents accidental quits during typing.
+- **`ui/layout.go`**: Shared `outerFrame` style (double border, accent color) and `sepLine(width)` helper. `outerFrameVSize()` = 2, `outerFrameHSize()` = 6.
+- **Broker**: Interface (`Subscribe`, `Publish`, `Connect`, `Disconnect`, `StartServer`, `StopServer`) with unexported concrete type. Passed from `main()` → `ChatRoomScreen`. Two pub/sub channels: `"chat"` for messages, `"presence"` for join/leave events. Wire format is JSON.
 
 ---
 
-## 3. Remaining Issues
+## 3. Test Infrastructure
 
-### 3.1 No Test Infrastructure
+27 tests across 3 packages, run with `go test ./tui/...`:
 
-Zero `*_test.go` files exist. The entire application has:
-- No unit tests for the broker
-- No unit tests for components
-- No integration tests for the TCP protocol
-- No TUI model tests
+| Package | File | Tests | Scope |
+|---------|------|-------|-------|
+| `components` | `components_test.go` | 11 | `MessageList` render (empty, non-empty, scroll, exact-fit), `RoomList`, `UserList`, `TitleBar`, `Footer`, `UserPanel` rendering |
+| `messageStore` | `messageStore_test.go` | 6 | Publish/subscribe delivery, multiple subscribers, channel isolation, close cleanup, TCP server → client integration |
+| `ui` | `ui_test.go` | 10 | `ChatRoomScreen` line count, small-terminal clamp, message routing, pgup/pgdown scroll, enter publish, `RoomListScreen` render + enter |
 
-### 3.2 Over-Exported Names
+## 4. Design Reference
 
-Types like `TitleBar`, `Footer`, `RoomList`, `MessageList`, `UserList`, `InputBar`, `UserPanel` are exported but only used within their package or by `main.go`. Only `AppScreen` is a genuinely public interface.
-
-### 3.3 Inconsistent API Surface
-
-- `InputBar.Render()` calls `Focus()` on every render, unlike other components.
-- `ChatRoomScreen` calls `s.InputBar.Update(msg)` directly rather than dispatching through the `Component` interface.
-
-### 3.4 `Component` Interface Has No Polymorphic Consumers
-
-All components implement `Component`, but nothing depends on the interface for dispatch — screens access children by concrete type. The actual polymorphism runs through `AppScreen`.
-
-### 3.5 `readLoop` Cannot Be Externally Stopped
-
-No context, cancel channel, or close signal. The goroutine runs until the connection errors or the process exits.
-
-### 3.6 Error Handling Edge Cases
-
-| Location | Issue | Severity |
-|----------|-------|----------|
-| `messageStore.go:110` | `reader.ReadString` error terminates read loop silently | Major |
-| `messageStore.go:115` | `json.Unmarshal` error silently `continue`s | Minor |
-| `messageStore.go:165` | `w.WriteString` error silently `continue`s | Minor |
-
----
-
-## 4. Improvement Plan
-
-### Phase 1: Add Test Infrastructure
-
-| Task | Scope | Status |
-|------|-------|--------|
-| 1.1 Write broker tests | `messageStore/messageStore_test.go` — `Publish`/`Subscribe` delivery, channel isolation, `Close()` cleanup, buffered non-blocking. | ✅ Done |
-| 1.2 Write component tests | `components/components_test.go` — `MessageList.Render` (empty, non-empty, scroll, exact-fit), `RoomList` navigation, `UserList` add/remove, `TitleBar`/`Footer`/`UserPanel` rendering. 10 tests total. | ✅ Done |
-| 1.3 Write screen functional tests | `ui/ui_test.go` — ChatRoomScreen line count with and without messages, small-terminal clamp, no trailing NL, message routing, esc navigation, pgup/pgdown scroll, enter publish, RoomListScreen render + navigation. 10 tests total. | ✅ Done |
-| 1.4 Write integration test | TCP server → multiple clients → message delivery. | ❌ Pending |
-
-### Phase 2: Code Quality & Maintenance
-
-| Task | Scope |
-|------|-------|
-| 2.1 Add Go CI workflow | `.github/workflows/go.yml` — `go test ./...` on push/PR. |
-| 2.2 Make room names configurable | `main.go` — Accept via CLI flag or env var with sensible defaults. |
-| 2.3 Integrate or remove `Component` interface | Either use it for polymorphic rendering in screens (e.g. `[]Component` for iterating Render/Update) or remove the unused interface methods. |
-| 2.4 Address `readLoop` stop | Add context or close channel to `readLoop`. |
-| 2.5 Add project-local `.gitignore` for `debug.log` | Already exists in `tui/.gitignore` but `debug.log` was committed before. |
+See [ai/design/brutalist-layout.md](../design/brutalist-layout.md) for the neo-brutalist design system spec, color palette, typography rules, and the full room tab integration rationale.

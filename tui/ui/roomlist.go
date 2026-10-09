@@ -7,8 +7,8 @@ import (
 	"terminal_chat/tui/messageStore"
 	"terminal_chat/tui/models"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type RoomListScreen struct {
@@ -23,7 +23,7 @@ func NewRoomListScreen(broker messageStore.Broker, rooms []string) *RoomListScre
 		broker:   broker,
 		TitleBar: components.NewTitleBar("ROOMS"),
 		RoomList: components.NewRoomList(rooms),
-Footer: components.NewFooter("UP/DOWN navigate  ·  ENTER select  ·  qq quit"),
+		Footer:   components.NewFooter("UP/DOWN navigate  ·  ENTER select  ·  qq quit"),
 	}
 }
 

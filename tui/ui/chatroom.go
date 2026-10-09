@@ -50,7 +50,7 @@ func NewChatRoomScreen(broker messageStore.Broker, backRef models.AppScreen, roo
 		broker:        broker,
 		UserPanel:     components.NewUserPanel(),
 		InputBar:      components.NewInputBar(""),
-Footer: components.NewFooter("ENTER send  ·  ↑/↓ line  ·  PgUp/PgDn scroll  ·  TAB/←→ rooms  ·  qq quit"),
+		Footer:        components.NewFooter("ENTER send  ·  ↑/↓ line  ·  PgUp/PgDn scroll  ·  TAB/←→ rooms  ·  qq quit"),
 		RoomTabs:      components.NewRoomTabs(rooms),
 		messageLists:  messageLists,
 		usersPerRoom:  usersPerRoom,

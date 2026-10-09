@@ -24,4 +24,3 @@ func outerFrameVSize() int {
 func sepLine(width int) string {
 	return strings.Repeat("─", width)
 }
-

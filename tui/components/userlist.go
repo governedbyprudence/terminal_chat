@@ -57,6 +57,6 @@ func (u *UserList) Render(_ int) string {
 
 func (u *UserList) OnKeyPress(key string) (int, tea.Cmd) { return 0, nil }
 func (u *UserList) Update(msg tea.Msg) tea.Cmd           { return nil }
-func (u *UserList) Focus() tea.Cmd                        { return nil }
-func (u *UserList) Blur()                                 {}
-func (u *UserList) Focused() bool                         { return false }
+func (u *UserList) Focus() tea.Cmd                       { return nil }
+func (u *UserList) Blur()                                {}
+func (u *UserList) Focused() bool                        { return false }
